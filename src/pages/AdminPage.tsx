@@ -59,7 +59,7 @@ const AdminPage = () => {
     }
   });
 
-  // Fetch all bookings
+  // Fetch all bookings with proper joins
   const { data: bookings } = useQuery({
     queryKey: ['adminBookings'],
     queryFn: async () => {
@@ -397,8 +397,8 @@ const AdminPage = () => {
                         {booking.total_price} {booking.currency}
                       </p>
                       <div className="flex gap-2 mt-2">
-                        <Button size="xs" variant="outline">تعديل</Button>
-                        <Button size="xs" variant="destructive">إلغاء</Button>
+                        <Button size="sm" variant="outline">تعديل</Button>
+                        <Button size="sm" variant="destructive">إلغاء</Button>
                       </div>
                     </div>
                   </div>
