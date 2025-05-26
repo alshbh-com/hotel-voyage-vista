@@ -3,7 +3,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import LoginPage from "@/components/LoginPage";
 import MainLayout from "@/components/MainLayout";
@@ -15,7 +15,7 @@ import NotFound from "@/pages/NotFound";
 
 const queryClient = new QueryClient();
 
-const AppContent = () => {
+const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   const { currentUser, loading } = useAuth();
 
   if (loading) {
@@ -30,12 +30,21 @@ const AppContent = () => {
   }
 
   if (!currentUser) {
-    return <LoginPage />;
+    return <Navigate to="/login" replace />;
   }
 
+  return <>{children}</>;
+};
+
+const AppContent = () => {
   return (
     <Routes>
-      <Route path="/" element={<MainLayout />}>
+      <Route path="/login" element={<LoginPage />} />
+      <Route path="/" element={
+        <ProtectedRoute>
+          <MainLayout />
+        </ProtectedRoute>
+      }>
         <Route index element={<HomePage />} />
         <Route path="hotel/:id" element={<HotelDetails />} />
         <Route path="booking/:hotelId/:suiteId/:roomId" element={<BookingPage />} />

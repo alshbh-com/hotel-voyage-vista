@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -11,8 +11,15 @@ const LoginPage = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isLogin, setIsLogin] = useState(true);
-  const { login, register, loginAsGuest } = useAuth();
+  const { login, register, loginAsGuest, currentUser } = useAuth();
   const navigate = useNavigate();
+
+  // Redirect if already logged in
+  useEffect(() => {
+    if (currentUser) {
+      navigate('/', { replace: true });
+    }
+  }, [currentUser, navigate]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -23,7 +30,6 @@ const LoginPage = () => {
         await register(email, password);
       }
       toast({ title: 'تم تسجيل الدخول بنجاح!' });
-      navigate('/');
     } catch (error) {
       toast({ 
         title: 'خطأ في تسجيل الدخول', 
@@ -37,7 +43,6 @@ const LoginPage = () => {
     try {
       await loginAsGuest();
       toast({ title: 'تم الدخول كزائر بنجاح!' });
-      navigate('/');
     } catch (error) {
       toast({ 
         title: 'خطأ في الدخول كزائر',
