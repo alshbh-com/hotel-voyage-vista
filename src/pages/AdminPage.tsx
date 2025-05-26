@@ -9,7 +9,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Hotel, Users, Calendar, Settings, Plus, Edit, Trash2, Upload, X } from 'lucide-react';
+import { Hotel, Users, Calendar, Settings, Plus, Edit, Trash2, Upload, X, Check, CheckCircle, XCircle } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 
 interface UploadedImage {
@@ -27,11 +27,6 @@ interface HotelData {
   rating: string;
   amenities: string;
   images: string;
-}
-
-interface BookingUpdateData {
-  bookingId: string;
-  status: string;
 }
 
 const AdminPage = () => {
@@ -83,7 +78,7 @@ const AdminPage = () => {
     }
   });
 
-  // Fetch all bookings with hotel info
+  // Fetch all bookings with hotel and user info
   const { data: bookings } = useQuery({
     queryKey: ['adminBookings'],
     queryFn: async () => {
@@ -91,40 +86,12 @@ const AdminPage = () => {
         .from('bookings')
         .select(`
           *,
-          hotels!inner(name)
+          hotels!inner(name, city),
+          profiles!inner(first_name, last_name)
         `)
-        .order('created_at', { ascending: false })
-        .limit(10);
+        .order('created_at', { ascending: false });
       
       if (bookingsError) throw bookingsError;
-
-      // Fetch user profiles separately to get user names
-      if (bookingsData && bookingsData.length > 0) {
-        const userIds = [...new Set(bookingsData.map(b => b.user_id))];
-        const { data: profilesData, error: profilesError } = await supabase
-          .from('profiles')
-          .select('id, first_name, last_name')
-          .in('id', userIds);
-        
-        if (profilesError) {
-          console.error('Error fetching profiles:', profilesError);
-          // Return bookings without profile data if profiles fetch fails
-          return bookingsData.map(booking => ({
-            ...booking,
-            user_name: 'مستخدم غير معروف'
-          }));
-        }
-
-        // Combine data
-        return bookingsData.map(booking => {
-          const profile = profilesData?.find(p => p.id === booking.user_id);
-          return {
-            ...booking,
-            user_name: profile ? `${profile.first_name || ''} ${profile.last_name || ''}`.trim() : 'مستخدم غير معروف'
-          };
-        });
-      }
-      
       return bookingsData || [];
     }
   });
@@ -152,7 +119,6 @@ const AdminPage = () => {
     mutationFn: async (hotelData: HotelData) => {
       const amenitiesArray = hotelData.amenities.split(',').map(a => a.trim()).filter(a => a);
       
-      // Use uploaded images or default placeholder
       let imagesArray: string[] = [];
       if (uploadedImages.length > 0) {
         imagesArray = uploadedImages.map(img => img.url);
@@ -195,7 +161,8 @@ const AdminPage = () => {
       });
       toast({ title: 'تم إضافة الفندق بنجاح' });
     },
-    onError: () => {
+    onError: (error) => {
+      console.error('Error adding hotel:', error);
       toast({
         title: 'خطأ',
         description: 'حدث خطأ أثناء إضافة الفندق',
@@ -220,7 +187,8 @@ const AdminPage = () => {
       queryClient.invalidateQueries({ queryKey: ['hotels'] });
       toast({ title: 'تم حذف الفندق بنجاح' });
     },
-    onError: () => {
+    onError: (error) => {
+      console.error('Error deleting hotel:', error);
       toast({
         title: 'خطأ',
         description: 'حدث خطأ أثناء حذف الفندق',
@@ -229,21 +197,48 @@ const AdminPage = () => {
     }
   });
 
-  // Update booking status mutation
+  // Update booking status mutation with payment simulation
   const updateBookingMutation = useMutation({
-    mutationFn: async ({ bookingId, status }: BookingUpdateData) => {
+    mutationFn: async ({ bookingId, status }: { bookingId: string; status: string }) => {
+      console.log('Updating booking:', bookingId, 'to status:', status);
+      
       const { error } = await supabase
         .from('bookings')
-        .update({ status, updated_at: new Date().toISOString() })
+        .update({ 
+          status, 
+          updated_at: new Date().toISOString() 
+        })
         .eq('id', bookingId);
       
       if (error) throw error;
+
+      // Simulate payment processing
+      if (status === 'confirmed') {
+        console.log('Payment confirmed - Money transferred to hotel account');
+        // Here you would integrate with actual payment processor
+      } else if (status === 'cancelled') {
+        console.log('Booking cancelled - Refund initiated to customer');
+        // Here you would process refund
+      }
     },
-    onSuccess: () => {
+    onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['adminBookings'] });
-      toast({ title: 'تم تحديث حالة الحجز بنجاح' });
+      queryClient.invalidateQueries({ queryKey: ['bookings'] });
+      
+      if (variables.status === 'confirmed') {
+        toast({ 
+          title: 'تم تأكيد الحجز',
+          description: 'تم تحويل المبلغ لحساب الفندق'
+        });
+      } else if (variables.status === 'cancelled') {
+        toast({ 
+          title: 'تم إلغاء الحجز',
+          description: 'تم بدء إجراءات استرداد المبلغ للعميل'
+        });
+      }
     },
-    onError: () => {
+    onError: (error) => {
+      console.error('Error updating booking:', error);
       toast({
         title: 'خطأ',
         description: 'حدث خطأ أثناء تحديث الحجز',
@@ -253,17 +248,22 @@ const AdminPage = () => {
   });
 
   const handleAddHotel = () => {
+    console.log('Adding hotel with data:', newHotel);
     addHotelMutation.mutate(newHotel);
   };
 
   const handleDeleteHotel = (hotelId: string) => {
     if (confirm('هل أنت متأكد من حذف هذا الفندق؟')) {
+      console.log('Deleting hotel:', hotelId);
       deleteHotelMutation.mutate(hotelId);
     }
   };
 
   const handleUpdateBookingStatus = (bookingId: string, status: string) => {
-    updateBookingMutation.mutate({ bookingId, status });
+    if (confirm(`هل أنت متأكد من ${status === 'confirmed' ? 'تأكيد' : 'إلغاء'} هذا الحجز؟`)) {
+      console.log('Updating booking status:', bookingId, status);
+      updateBookingMutation.mutate({ bookingId, status });
+    }
   };
 
   return (
@@ -326,12 +326,12 @@ const AdminPage = () => {
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {bookings?.map((booking: any) => (
+                {bookings?.slice(0, 5).map((booking: any) => (
                   <div key={booking.id} className="flex items-center justify-between p-4 border rounded-lg">
                     <div className="text-right">
                       <p className="font-medium">{booking.hotels?.name}</p>
                       <p className="text-sm text-gray-600">
-                        {booking.user_name}
+                        {booking.profiles ? `${booking.profiles.first_name} ${booking.profiles.last_name}` : 'مستخدم غير معروف'}
                       </p>
                     </div>
                     <div className="text-left">
@@ -495,7 +495,7 @@ const AdminPage = () => {
                     onClick={handleAddHotel}
                     disabled={addHotelMutation.isPending}
                   >
-                    إضافة الفندق
+                    {addHotelMutation.isPending ? 'جاري الإضافة...' : 'إضافة الفندق'}
                   </Button>
                   <Button 
                     variant="outline" 
@@ -555,7 +555,7 @@ const AdminPage = () => {
                     <div className="text-right">
                       <p className="font-medium">{booking.hotels?.name}</p>
                       <p className="text-sm text-gray-600">
-                        {booking.user_name}
+                        {booking.profiles ? `${booking.profiles.first_name} ${booking.profiles.last_name}` : 'مستخدم غير معروف'}
                       </p>
                       <p className="text-xs text-gray-500">
                         {new Date(booking.check_in).toLocaleDateString('ar-EG')} - 
@@ -581,17 +581,21 @@ const AdminPage = () => {
                           <>
                             <Button 
                               size="sm" 
-                              variant="outline"
+                              className="bg-green-600 hover:bg-green-700"
                               onClick={() => handleUpdateBookingStatus(booking.id, 'confirmed')}
+                              disabled={updateBookingMutation.isPending}
                             >
-                              تأكيد
+                              <CheckCircle className="h-3 w-3 ml-1" />
+                              قبول
                             </Button>
                             <Button 
                               size="sm" 
                               variant="destructive"
                               onClick={() => handleUpdateBookingStatus(booking.id, 'cancelled')}
+                              disabled={updateBookingMutation.isPending}
                             >
-                              إلغاء
+                              <XCircle className="h-3 w-3 ml-1" />
+                              رفض
                             </Button>
                           </>
                         )}
@@ -600,7 +604,9 @@ const AdminPage = () => {
                             size="sm" 
                             variant="destructive"
                             onClick={() => handleUpdateBookingStatus(booking.id, 'cancelled')}
+                            disabled={updateBookingMutation.isPending}
                           >
+                            <XCircle className="h-3 w-3 ml-1" />
                             إلغاء الحجز
                           </Button>
                         )}
@@ -631,6 +637,13 @@ const AdminPage = () => {
                 <div>
                   <Label>حالة التطبيق</Label>
                   <Badge className="bg-green-100 text-green-800">نشط</Badge>
+                </div>
+                <div>
+                  <Label>نظام الدفع</Label>
+                  <Badge className="bg-blue-100 text-blue-800">وهمي (للتطوير)</Badge>
+                  <p className="text-sm text-gray-500 mt-1">
+                    سيتم تطوير نظام دفع حقيقي لاحقاً
+                  </p>
                 </div>
                 <p className="text-gray-600">ستتوفر إعدادات إضافية قريباً...</p>
               </div>

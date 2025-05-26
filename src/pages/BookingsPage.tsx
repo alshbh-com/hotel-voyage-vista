@@ -138,7 +138,7 @@ const BookingsPage = () => {
       ) : (
         <div className="space-y-6">
           {bookings?.map((booking: any) => {
-            // Safely parse guest_info as it might be a JSON string or object
+            // Safely parse guest_info
             let guestInfo: GuestInfo = {};
             try {
               if (typeof booking.guest_info === 'string') {
