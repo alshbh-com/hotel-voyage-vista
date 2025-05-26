@@ -11,6 +11,11 @@ import HomePage from "@/pages/HomePage";
 import HotelDetails from "@/pages/HotelDetails";
 import BookingPage from "@/pages/BookingPage";
 import PaymentPage from "@/pages/PaymentPage";
+import BookingsPage from "@/pages/BookingsPage";
+import ProfilePage from "@/pages/ProfilePage";
+import NotificationsPage from "@/pages/NotificationsPage";
+import FavoritesPage from "@/pages/FavoritesPage";
+import AdminPage from "@/pages/AdminPage";
 import NotFound from "@/pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -49,11 +54,11 @@ const AppContent = () => {
         <Route path="hotel/:id" element={<HotelDetails />} />
         <Route path="booking/:hotelId/:suiteId/:roomId" element={<BookingPage />} />
         <Route path="payment" element={<PaymentPage />} />
-        <Route path="bookings" element={<div className="text-center py-20">صفحة الحجوزات - قيد التطوير</div>} />
-        <Route path="profile" element={<div className="text-center py-20">الملف الشخصي - قيد التطوير</div>} />
-        <Route path="notifications" element={<div className="text-center py-20">الإشعارات - قيد التطوير</div>} />
-        <Route path="favorites" element={<div className="text-center py-20">المفضلة - قيد التطوير</div>} />
-        <Route path="admin" element={<div className="text-center py-20">لوحة الإدارة - قيد التطوير</div>} />
+        <Route path="bookings" element={<BookingsPage />} />
+        <Route path="profile" element={<ProfilePage />} />
+        <Route path="notifications" element={<NotificationsPage />} />
+        <Route path="favorites" element={<FavoritesPage />} />
+        <Route path="admin" element={<AdminPage />} />
       </Route>
       <Route path="*" element={<NotFound />} />
     </Routes>

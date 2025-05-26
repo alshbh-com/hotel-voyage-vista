@@ -1,75 +1,36 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Search, Heart, MapPin, Star } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { Hotel } from '@/types';
+import { useHotels } from '@/hooks/useHotels';
+import { useFavorites } from '@/hooks/useFavorites';
+import { useAuth } from '@/contexts/AuthContext';
 
 const HomePage = () => {
   const [searchTerm, setSearchTerm] = useState('');
-  const [hotels, setHotels] = useState<Hotel[]>([]);
-  const [favorites, setFavorites] = useState<string[]>([]);
+  const { data: hotels, isLoading } = useHotels();
+  const { favorites, toggleFavorite } = useFavorites();
+  const { currentUser } = useAuth();
 
-  // Mock data for hotels
-  useEffect(() => {
-    setHotels([
-      {
-        id: '1',
-        name: 'فندق الأزهر الراقي',
-        description: 'فندق فاخر في قلب المدينة مع خدمات 5 نجوم',
-        address: 'شارع التحرير، وسط البلد',
-        city: 'القاهرة',
-        rating: 4.8,
-        images: ['/placeholder.svg'],
-        amenities: ['واي فاي مجاني', 'مسبح', 'صالة رياضة', 'مطعم'],
-        pricePerNight: 250,
-        currency: 'EGP',
-        suites: []
-      },
-      {
-        id: '2',
-        name: 'منتجع النيل الذهبي',
-        description: 'منتجع على النيل مع إطلالات خلابة',
-        address: 'كورنيش النيل',
-        city: 'الأقصر',
-        rating: 4.6,
-        images: ['/placeholder.svg'],
-        amenities: ['إطلالة على النيل', 'سبا', 'مسبح', 'خدمة الغرف'],
-        pricePerNight: 180,
-        currency: 'EGP',
-        suites: []
-      },
-      {
-        id: '3',
-        name: 'فندق الشاطئ الأزرق',
-        description: 'فندق على البحر الأحمر مع شاطئ خاص',
-        address: 'طريق الشاطئ',
-        city: 'الغردقة',
-        rating: 4.9,
-        images: ['/placeholder.svg'],
-        amenities: ['شاطئ خاص', 'غوص', 'مسبح', 'نادي صحي'],
-        pricePerNight: 320,
-        currency: 'EGP',
-        suites: []
-      }
-    ]);
-  }, []);
-
-  const filteredHotels = hotels.filter(hotel =>
+  const filteredHotels = hotels?.filter(hotel =>
     hotel.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     hotel.city.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  ) || [];
 
-  const toggleFavorite = (hotelId: string) => {
-    setFavorites(prev => 
-      prev.includes(hotelId) 
-        ? prev.filter(id => id !== hotelId)
-        : [...prev, hotelId]
+  if (isLoading) {
+    return (
+      <div className="max-w-7xl mx-auto px-4 py-6 pb-20">
+        <div className="text-center py-20">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600 mx-auto mb-4"></div>
+          <p className="text-purple-600">جاري التحميل...</p>
+        </div>
+      </div>
     );
-  };
+  }
 
   return (
     <div className="max-w-7xl mx-auto px-4 py-6 pb-20">
@@ -98,8 +59,8 @@ const HomePage = () => {
       {/* Quick Stats */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
         {[
-          { label: 'فنادق متاحة', value: '150+', color: 'bg-blue-500' },
-          { label: 'مدن', value: '25+', color: 'bg-purple-500' },
+          { label: 'فنادق متاحة', value: `${hotels?.length || 0}+`, color: 'bg-blue-500' },
+          { label: 'مدن', value: `${new Set(hotels?.map(h => h.city)).size || 0}+`, color: 'bg-purple-500' },
           { label: 'عملاء راضون', value: '10K+', color: 'bg-pink-500' },
           { label: 'حجوزات ناجحة', value: '50K+', color: 'bg-green-500' }
         ].map((stat, index) => (
@@ -120,22 +81,24 @@ const HomePage = () => {
           <Card key={hotel.id} className="overflow-hidden bg-white/80 backdrop-blur-sm border-0 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1">
             <div className="relative">
               <img
-                src={hotel.images[0]}
+                src={hotel.images[0] || '/placeholder.svg'}
                 alt={hotel.name}
                 className="w-full h-48 object-cover"
               />
-              <Button
-                onClick={() => toggleFavorite(hotel.id)}
-                variant="ghost"
-                size="sm"
-                className={`absolute top-2 left-2 rounded-full ${
-                  favorites.includes(hotel.id) 
-                    ? 'text-red-500 bg-white/80' 
-                    : 'text-gray-400 bg-white/60'
-                } hover:bg-white/90`}
-              >
-                <Heart className={`h-4 w-4 ${favorites.includes(hotel.id) ? 'fill-current' : ''}`} />
-              </Button>
+              {currentUser && (
+                <Button
+                  onClick={() => toggleFavorite(hotel.id)}
+                  variant="ghost"
+                  size="sm"
+                  className={`absolute top-2 left-2 rounded-full ${
+                    favorites.includes(hotel.id) 
+                      ? 'text-red-500 bg-white/80' 
+                      : 'text-gray-400 bg-white/60'
+                  } hover:bg-white/90`}
+                >
+                  <Heart className={`h-4 w-4 ${favorites.includes(hotel.id) ? 'fill-current' : ''}`} />
+                </Button>
+              )}
               <div className="absolute top-2 right-2 bg-purple-500 text-white px-2 py-1 rounded-full text-sm">
                 {hotel.currency} {hotel.pricePerNight}/ليلة
               </div>
@@ -181,7 +144,7 @@ const HomePage = () => {
         ))}
       </div>
 
-      {filteredHotels.length === 0 && (
+      {filteredHotels.length === 0 && !isLoading && (
         <div className="text-center py-12">
           <p className="text-gray-500 text-lg">لا توجد فنادق تطابق بحثك</p>
         </div>
