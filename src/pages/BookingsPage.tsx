@@ -1,39 +1,79 @@
 
 import React from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Calendar, MapPin, Users, CreditCard } from 'lucide-react';
+import { Calendar, MapPin, Users, CreditCard, Edit, X } from 'lucide-react';
 import { format } from 'date-fns';
 import { ar } from 'date-fns/locale';
+import { toast } from '@/hooks/use-toast';
 
 const BookingsPage = () => {
   const { currentUser } = useAuth();
+  const queryClient = useQueryClient();
 
   const { data: bookings, isLoading } = useQuery({
     queryKey: ['bookings', currentUser?.id],
     queryFn: async () => {
       if (!currentUser) return [];
       
+      console.log('Fetching bookings for user:', currentUser.id);
+      
       const { data, error } = await supabase
         .from('bookings')
         .select(`
           *,
-          hotels:hotel_id(name, city, images),
-          suites:suite_id(name),
-          rooms:room_id(name, type)
+          hotels!inner(name, city, images)
         `)
         .eq('user_id', currentUser.id)
         .order('created_at', { ascending: false });
       
-      if (error) throw error;
+      if (error) {
+        console.error('Error fetching bookings:', error);
+        throw error;
+      }
+      
+      console.log('Fetched bookings:', data);
       return data;
     },
     enabled: !!currentUser
   });
+
+  // Cancel booking mutation
+  const cancelBookingMutation = useMutation({
+    mutationFn: async (bookingId) => {
+      const { error } = await supabase
+        .from('bookings')
+        .update({ status: 'cancelled', updated_at: new Date().toISOString() })
+        .eq('id', bookingId)
+        .eq('user_id', currentUser.id);
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['bookings'] });
+      toast({
+        title: 'تم إلغاء الحجز',
+        description: 'تم إلغاء حجزك بنجاح'
+      });
+    },
+    onError: () => {
+      toast({
+        title: 'خطأ',
+        description: 'حدث خطأ أثناء إلغاء الحجز',
+        variant: 'destructive'
+      });
+    }
+  });
+
+  const handleCancelBooking = (bookingId) => {
+    if (confirm('هل أنت متأكد من إلغاء هذا الحجز؟')) {
+      cancelBookingMutation.mutate(bookingId);
+    }
+  };
 
   if (!currentUser) {
     return (
@@ -56,7 +96,7 @@ const BookingsPage = () => {
     );
   }
 
-  const getStatusColor = (status: string) => {
+  const getStatusColor = (status) => {
     switch (status) {
       case 'confirmed': return 'bg-green-100 text-green-800';
       case 'pending': return 'bg-yellow-100 text-yellow-800';
@@ -65,7 +105,7 @@ const BookingsPage = () => {
     }
   };
 
-  const getStatusText = (status: string) => {
+  const getStatusText = (status) => {
     switch (status) {
       case 'confirmed': return 'مؤكد';
       case 'pending': return 'في الانتظار';
@@ -147,23 +187,43 @@ const BookingsPage = () => {
                   </div>
                 </div>
 
-                <div className="border-t pt-4">
-                  <p className="text-sm text-gray-600 mb-1">
-                    <span className="font-medium">الجناح:</span> {booking.suites?.name}
-                  </p>
-                  <p className="text-sm text-gray-600">
-                    <span className="font-medium">الغرفة:</span> {booking.rooms?.name} ({booking.rooms?.type})
-                  </p>
-                </div>
+                {booking.guest_info && (
+                  <div className="border-t pt-4">
+                    <p className="text-sm text-gray-600 mb-1">
+                      <span className="font-medium">اسم النزيل:</span> {booking.guest_info.firstName} {booking.guest_info.lastName}
+                    </p>
+                    <p className="text-sm text-gray-600 mb-1">
+                      <span className="font-medium">البريد الإلكتروني:</span> {booking.guest_info.email}
+                    </p>
+                    <p className="text-sm text-gray-600">
+                      <span className="font-medium">رقم الهاتف:</span> {booking.guest_info.phone}
+                    </p>
+                    {booking.guest_info.specialRequests && (
+                      <p className="text-sm text-gray-600 mt-2">
+                        <span className="font-medium">طلبات خاصة:</span> {booking.guest_info.specialRequests}
+                      </p>
+                    )}
+                  </div>
+                )}
 
-                {booking.status === 'pending' && (
-                  <div className="flex gap-2 pt-4">
-                    <Button variant="outline" size="sm" className="flex-1">
+                {(booking.status === 'pending' || booking.status === 'confirmed') && (
+                  <div className="flex gap-2 pt-4 border-t">
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      className="flex-1"
+                      onClick={() => handleCancelBooking(booking.id)}
+                      disabled={cancelBookingMutation.isPending}
+                    >
+                      <X className="h-4 w-4 ml-1" />
                       إلغاء الحجز
                     </Button>
-                    <Button size="sm" className="flex-1">
-                      تأكيد الدفع
-                    </Button>
+                    {booking.status === 'pending' && (
+                      <Button size="sm" className="flex-1" disabled>
+                        <Edit className="h-4 w-4 ml-1" />
+                        في انتظار التأكيد
+                      </Button>
+                    )}
                   </div>
                 )}
               </CardContent>

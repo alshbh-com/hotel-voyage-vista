@@ -1,6 +1,9 @@
 
 import React, { useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -12,6 +15,8 @@ import { toast } from '@/hooks/use-toast';
 const PaymentPage = () => {
   const location = useLocation();
   const navigate = useNavigate();
+  const { currentUser } = useAuth();
+  const queryClient = useQueryClient();
   const booking = location.state?.booking;
   
   const [paymentMethod, setPaymentMethod] = useState('card');
@@ -21,24 +26,89 @@ const PaymentPage = () => {
     cvv: '',
     name: ''
   });
+  const [isProcessing, setIsProcessing] = useState(false);
 
   if (!booking) {
     navigate('/');
     return null;
   }
 
-  const handlePayment = (e: React.FormEvent) => {
+  if (!currentUser) {
+    navigate('/login');
+    return null;
+  }
+
+  // Create booking mutation
+  const createBookingMutation = useMutation({
+    mutationFn: async () => {
+      console.log('Creating booking for user:', currentUser.id);
+      console.log('Booking data:', booking);
+      
+      const { data, error } = await supabase
+        .from('bookings')
+        .insert({
+          user_id: currentUser.id,
+          hotel_id: booking.hotelId || 'hotel_id_placeholder',
+          suite_id: booking.suiteId || 'suite_id_placeholder', 
+          room_id: booking.roomId || 'room_id_placeholder',
+          check_in: booking.checkIn.toISOString().split('T')[0],
+          check_out: booking.checkOut.toISOString().split('T')[0],
+          guests: booking.guests,
+          total_price: Math.round(booking.total * 1.09),
+          currency: booking.currency || 'EGP',
+          status: paymentMethod === 'cash' ? 'pending' : 'confirmed',
+          guest_info: booking.guestInfo
+        })
+        .select()
+        .single();
+
+      if (error) {
+        console.error('Booking creation error:', error);
+        throw error;
+      }
+
+      console.log('Booking created successfully:', data);
+      return data;
+    },
+    onSuccess: (data) => {
+      console.log('Booking mutation succeeded:', data);
+      queryClient.invalidateQueries({ queryKey: ['bookings'] });
+      
+      toast({
+        title: 'تم الدفع بنجاح!',
+        description: 'سيتم إرسال تأكيد الحجز على بريدك الإلكتروني',
+      });
+      
+      setTimeout(() => {
+        navigate('/bookings');
+      }, 2000);
+    },
+    onError: (error) => {
+      console.error('Booking mutation failed:', error);
+      toast({
+        title: 'فشل في إنشاء الحجز',
+        description: 'حدث خطأ أثناء معالجة طلبك. يرجى المحاولة مرة أخرى.',
+        variant: 'destructive'
+      });
+    }
+  });
+
+  const handlePayment = async (e) => {
     e.preventDefault();
-    
-    // Simulate payment processing
-    toast({
-      title: 'تم الدفع بنجاح!',
-      description: 'سيتم إرسال تأكيد الحجز على بريدك الإلكتروني',
-    });
-    
-    setTimeout(() => {
-      navigate('/bookings');
-    }, 2000);
+    setIsProcessing(true);
+
+    try {
+      // Simulate payment processing delay
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      
+      // Create the booking
+      await createBookingMutation.mutateAsync();
+      
+    } catch (error) {
+      console.error('Payment processing error:', error);
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
   return (
@@ -164,8 +234,10 @@ const PaymentPage = () => {
               <Button 
                 type="submit" 
                 className="w-full bg-gradient-to-r from-green-500 to-blue-500 hover:from-green-600 hover:to-blue-600"
+                disabled={isProcessing || createBookingMutation.isPending}
               >
-                {paymentMethod === 'cash' ? 'تأكيد الحجز' : 'إتمام الدفع'}
+                {isProcessing ? 'جاري المعالجة...' : 
+                 paymentMethod === 'cash' ? 'تأكيد الحجز' : 'إتمام الدفع'}
               </Button>
             </form>
           </CardContent>

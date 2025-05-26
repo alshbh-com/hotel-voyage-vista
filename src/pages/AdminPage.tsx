@@ -9,12 +9,14 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Hotel, Users, Calendar, Settings, Plus, Edit, Trash2 } from 'lucide-react';
+import { Hotel, Users, Calendar, Settings, Plus, Edit, Trash2, Upload, X } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 
 const AdminPage = () => {
   const [activeTab, setActiveTab] = useState('overview');
   const [isAddingHotel, setIsAddingHotel] = useState(false);
+  const [editingHotel, setEditingHotel] = useState(null);
+  const [uploadedImages, setUploadedImages] = useState([]);
   const [newHotel, setNewHotel] = useState({
     name: '',
     description: '',
@@ -59,30 +61,74 @@ const AdminPage = () => {
     }
   });
 
-  // Fetch all bookings with proper joins
+  // Fetch all bookings with user profiles
   const { data: bookings } = useQuery({
     queryKey: ['adminBookings'],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data: bookingsData, error: bookingsError } = await supabase
         .from('bookings')
         .select(`
           *,
-          hotels:hotel_id(name),
-          profiles:user_id(first_name, last_name)
+          hotels!inner(name)
         `)
         .order('created_at', { ascending: false })
         .limit(10);
       
-      if (error) throw error;
-      return data;
+      if (bookingsError) throw bookingsError;
+
+      // Fetch user profiles separately
+      if (bookingsData && bookingsData.length > 0) {
+        const userIds = [...new Set(bookingsData.map(b => b.user_id))];
+        const { data: profilesData, error: profilesError } = await supabase
+          .from('profiles')
+          .select('id, first_name, last_name')
+          .in('id', userIds);
+        
+        if (profilesError) throw profilesError;
+
+        // Combine data
+        return bookingsData.map(booking => ({
+          ...booking,
+          profiles: profilesData?.find(p => p.id === booking.user_id) || { first_name: 'مستخدم', last_name: 'غير معروف' }
+        }));
+      }
+      
+      return bookingsData || [];
     }
   });
 
+  // Handle image upload
+  const handleImageUpload = (e) => {
+    const files = Array.from(e.target.files);
+    
+    files.forEach(file => {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const imageUrl = event.target.result;
+        setUploadedImages(prev => [...prev, { file, url: imageUrl, name: file.name }]);
+      };
+      reader.readAsDataURL(file);
+    });
+  };
+
+  const removeImage = (index) => {
+    setUploadedImages(prev => prev.filter((_, i) => i !== index));
+  };
+
   // Add hotel mutation
   const addHotelMutation = useMutation({
-    mutationFn: async (hotelData: typeof newHotel) => {
+    mutationFn: async (hotelData) => {
       const amenitiesArray = hotelData.amenities.split(',').map(a => a.trim()).filter(a => a);
-      const imagesArray = hotelData.images.split(',').map(i => i.trim()).filter(i => i);
+      
+      // Use uploaded images or default placeholder
+      let imagesArray = [];
+      if (uploadedImages.length > 0) {
+        imagesArray = uploadedImages.map(img => img.url);
+      } else if (hotelData.images) {
+        imagesArray = hotelData.images.split(',').map(i => i.trim()).filter(i => i);
+      } else {
+        imagesArray = ['/lovable-uploads/cc6d0fe2-5f1d-4f23-831f-230b4c18a2f2.png'];
+      }
       
       const { error } = await supabase
         .from('hotels')
@@ -94,7 +140,7 @@ const AdminPage = () => {
           price_per_night: parseInt(hotelData.price_per_night),
           rating: parseFloat(hotelData.rating),
           amenities: amenitiesArray,
-          images: imagesArray.length > 0 ? imagesArray : ['/placeholder.svg']
+          images: imagesArray
         });
       
       if (error) throw error;
@@ -102,7 +148,9 @@ const AdminPage = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['adminHotels'] });
       queryClient.invalidateQueries({ queryKey: ['adminStats'] });
+      queryClient.invalidateQueries({ queryKey: ['hotels'] });
       setIsAddingHotel(false);
+      setUploadedImages([]);
       setNewHotel({
         name: '',
         description: '',
@@ -124,8 +172,66 @@ const AdminPage = () => {
     }
   });
 
+  // Delete hotel mutation
+  const deleteHotelMutation = useMutation({
+    mutationFn: async (hotelId) => {
+      const { error } = await supabase
+        .from('hotels')
+        .delete()
+        .eq('id', hotelId);
+      
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['adminHotels'] });
+      queryClient.invalidateQueries({ queryKey: ['adminStats'] });
+      queryClient.invalidateQueries({ queryKey: ['hotels'] });
+      toast({ title: 'تم حذف الفندق بنجاح' });
+    },
+    onError: () => {
+      toast({
+        title: 'خطأ',
+        description: 'حدث خطأ أثناء حذف الفندق',
+        variant: 'destructive'
+      });
+    }
+  });
+
+  // Update booking status mutation
+  const updateBookingMutation = useMutation({
+    mutationFn: async ({ bookingId, status }) => {
+      const { error } = await supabase
+        .from('bookings')
+        .update({ status, updated_at: new Date().toISOString() })
+        .eq('id', bookingId);
+      
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['adminBookings'] });
+      toast({ title: 'تم تحديث حالة الحجز بنجاح' });
+    },
+    onError: () => {
+      toast({
+        title: 'خطأ',
+        description: 'حدث خطأ أثناء تحديث الحجز',
+        variant: 'destructive'
+      });
+    }
+  });
+
   const handleAddHotel = () => {
     addHotelMutation.mutate(newHotel);
+  };
+
+  const handleDeleteHotel = (hotelId) => {
+    if (confirm('هل أنت متأكد من حذف هذا الفندق؟')) {
+      deleteHotelMutation.mutate(hotelId);
+    }
+  };
+
+  const handleUpdateBookingStatus = (bookingId, status) => {
+    updateBookingMutation.mutate({ bookingId, status });
   };
 
   return (
@@ -309,13 +415,46 @@ const AdminPage = () => {
                 </div>
 
                 <div>
-                  <Label htmlFor="images">روابط الصور (مفصولة بفاصلة)</Label>
+                  <Label htmlFor="images">رفع صور الفندق</Label>
                   <Input
                     id="images"
+                    type="file"
+                    multiple
+                    accept="image/*"
+                    onChange={handleImageUpload}
+                    className="mb-2"
+                  />
+                  
+                  {uploadedImages.length > 0 && (
+                    <div className="grid grid-cols-3 gap-2 mt-2">
+                      {uploadedImages.map((img, index) => (
+                        <div key={index} className="relative">
+                          <img
+                            src={img.url}
+                            alt={`صورة ${index + 1}`}
+                            className="w-full h-20 object-cover rounded"
+                          />
+                          <Button
+                            size="sm"
+                            variant="destructive"
+                            className="absolute top-1 right-1 p-1 h-auto"
+                            onClick={() => removeImage(index)}
+                          >
+                            <X className="h-3 w-3" />
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  
+                  <p className="text-sm text-gray-500 mt-1">
+                    أو يمكنك إدخال روابط الصور مفصولة بفاصلة
+                  </p>
+                  <Input
                     value={newHotel.images}
                     onChange={(e) => setNewHotel(prev => ({ ...prev, images: e.target.value }))}
                     placeholder="/placeholder.svg, /hotel1.jpg"
-                    className="text-right"
+                    className="text-right mt-1"
                   />
                 </div>
 
@@ -328,7 +467,10 @@ const AdminPage = () => {
                   </Button>
                   <Button 
                     variant="outline" 
-                    onClick={() => setIsAddingHotel(false)}
+                    onClick={() => {
+                      setIsAddingHotel(false);
+                      setUploadedImages([]);
+                    }}
                   >
                     إلغاء
                   </Button>
@@ -342,7 +484,7 @@ const AdminPage = () => {
               <Card key={hotel.id} className="bg-white/80 backdrop-blur-sm border-0 shadow-lg">
                 <CardContent className="p-4">
                   <img
-                    src={hotel.images?.[0] || '/placeholder.svg'}
+                    src={hotel.images?.[0] || '/lovable-uploads/cc6d0fe2-5f1d-4f23-831f-230b4c18a2f2.png'}
                     alt={hotel.name}
                     className="w-full h-32 object-cover rounded mb-3"
                   />
@@ -354,7 +496,13 @@ const AdminPage = () => {
                       <Edit className="h-3 w-3 ml-1" />
                       تعديل
                     </Button>
-                    <Button size="sm" variant="destructive" className="flex-1">
+                    <Button 
+                      size="sm" 
+                      variant="destructive" 
+                      className="flex-1"
+                      onClick={() => handleDeleteHotel(hotel.id)}
+                      disabled={deleteHotelMutation.isPending}
+                    >
                       <Trash2 className="h-3 w-3 ml-1" />
                       حذف
                     </Button>
@@ -397,8 +545,33 @@ const AdminPage = () => {
                         {booking.total_price} {booking.currency}
                       </p>
                       <div className="flex gap-2 mt-2">
-                        <Button size="sm" variant="outline">تعديل</Button>
-                        <Button size="sm" variant="destructive">إلغاء</Button>
+                        {booking.status === 'pending' && (
+                          <>
+                            <Button 
+                              size="sm" 
+                              variant="outline"
+                              onClick={() => handleUpdateBookingStatus(booking.id, 'confirmed')}
+                            >
+                              تأكيد
+                            </Button>
+                            <Button 
+                              size="sm" 
+                              variant="destructive"
+                              onClick={() => handleUpdateBookingStatus(booking.id, 'cancelled')}
+                            >
+                              إلغاء
+                            </Button>
+                          </>
+                        )}
+                        {booking.status === 'confirmed' && (
+                          <Button 
+                            size="sm" 
+                            variant="destructive"
+                            onClick={() => handleUpdateBookingStatus(booking.id, 'cancelled')}
+                          >
+                            إلغاء الحجز
+                          </Button>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -418,7 +591,17 @@ const AdminPage = () => {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="text-gray-600">ستتوفر إعدادات إضافية قريباً...</p>
+              <div className="space-y-4">
+                <div>
+                  <Label>العملة الافتراضية</Label>
+                  <Input value="EGP" readOnly className="bg-gray-100" />
+                </div>
+                <div>
+                  <Label>حالة التطبيق</Label>
+                  <Badge className="bg-green-100 text-green-800">نشط</Badge>
+                </div>
+                <p className="text-gray-600">ستتوفر إعدادات إضافية قريباً...</p>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
