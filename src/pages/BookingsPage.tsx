@@ -11,6 +11,14 @@ import { format } from 'date-fns';
 import { ar } from 'date-fns/locale';
 import { toast } from '@/hooks/use-toast';
 
+interface GuestInfo {
+  firstName?: string;
+  lastName?: string;
+  email?: string;
+  phone?: string;
+  specialRequests?: string;
+}
+
 const BookingsPage = () => {
   const { currentUser } = useAuth();
   const queryClient = useQueryClient();
@@ -44,12 +52,12 @@ const BookingsPage = () => {
 
   // Cancel booking mutation
   const cancelBookingMutation = useMutation({
-    mutationFn: async (bookingId) => {
+    mutationFn: async (bookingId: string) => {
       const { error } = await supabase
         .from('bookings')
         .update({ status: 'cancelled', updated_at: new Date().toISOString() })
         .eq('id', bookingId)
-        .eq('user_id', currentUser.id);
+        .eq('user_id', currentUser?.id);
 
       if (error) throw error;
     },
@@ -69,7 +77,7 @@ const BookingsPage = () => {
     }
   });
 
-  const handleCancelBooking = (bookingId) => {
+  const handleCancelBooking = (bookingId: string) => {
     if (confirm('هل أنت متأكد من إلغاء هذا الحجز؟')) {
       cancelBookingMutation.mutate(bookingId);
     }
@@ -96,7 +104,7 @@ const BookingsPage = () => {
     );
   }
 
-  const getStatusColor = (status) => {
+  const getStatusColor = (status: string) => {
     switch (status) {
       case 'confirmed': return 'bg-green-100 text-green-800';
       case 'pending': return 'bg-yellow-100 text-yellow-800';
@@ -105,7 +113,7 @@ const BookingsPage = () => {
     }
   };
 
-  const getStatusText = (status) => {
+  const getStatusText = (status: string) => {
     switch (status) {
       case 'confirmed': return 'مؤكد';
       case 'pending': return 'في الانتظار';
@@ -129,106 +137,127 @@ const BookingsPage = () => {
         </div>
       ) : (
         <div className="space-y-6">
-          {bookings?.map((booking) => (
-            <Card key={booking.id} className="bg-white/80 backdrop-blur-sm border-0 shadow-lg">
-              <CardHeader className="pb-4">
-                <div className="flex justify-between items-start">
-                  <div>
-                    <CardTitle className="text-xl text-right">{booking.hotels?.name}</CardTitle>
-                    <div className="flex items-center text-gray-500 mt-1">
-                      <MapPin className="h-4 w-4 ml-1" />
-                      <span className="text-sm">{booking.hotels?.city}</span>
-                    </div>
-                  </div>
-                  <Badge className={getStatusColor(booking.status)}>
-                    {getStatusText(booking.status)}
-                  </Badge>
-                </div>
-              </CardHeader>
-              
-              <CardContent className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <div className="flex items-center text-gray-600 mb-2">
-                      <Calendar className="h-4 w-4 ml-2" />
-                      <span className="font-medium">تاريخ الوصول</span>
-                    </div>
-                    <p className="text-sm">
-                      {format(new Date(booking.check_in), 'dd MMMM yyyy', { locale: ar })}
-                    </p>
-                  </div>
-                  
-                  <div>
-                    <div className="flex items-center text-gray-600 mb-2">
-                      <Calendar className="h-4 w-4 ml-2" />
-                      <span className="font-medium">تاريخ المغادرة</span>
-                    </div>
-                    <p className="text-sm">
-                      {format(new Date(booking.check_out), 'dd MMMM yyyy', { locale: ar })}
-                    </p>
-                  </div>
-                </div>
+          {bookings?.map((booking: any) => {
+            // Safely parse guest_info as it might be a JSON string or object
+            let guestInfo: GuestInfo = {};
+            try {
+              if (typeof booking.guest_info === 'string') {
+                guestInfo = JSON.parse(booking.guest_info);
+              } else if (booking.guest_info && typeof booking.guest_info === 'object') {
+                guestInfo = booking.guest_info as GuestInfo;
+              }
+            } catch (error) {
+              console.error('Error parsing guest_info:', error);
+              guestInfo = {};
+            }
 
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <div className="flex items-center text-gray-600 mb-2">
-                      <Users className="h-4 w-4 ml-2" />
-                      <span className="font-medium">عدد النزلاء</span>
+            return (
+              <Card key={booking.id} className="bg-white/80 backdrop-blur-sm border-0 shadow-lg">
+                <CardHeader className="pb-4">
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <CardTitle className="text-xl text-right">{booking.hotels?.name}</CardTitle>
+                      <div className="flex items-center text-gray-500 mt-1">
+                        <MapPin className="h-4 w-4 ml-1" />
+                        <span className="text-sm">{booking.hotels?.city}</span>
+                      </div>
                     </div>
-                    <p className="text-sm">{booking.guests} نزيل</p>
+                    <Badge className={getStatusColor(booking.status)}>
+                      {getStatusText(booking.status)}
+                    </Badge>
                   </div>
-                  
-                  <div>
-                    <div className="flex items-center text-gray-600 mb-2">
-                      <CreditCard className="h-4 w-4 ml-2" />
-                      <span className="font-medium">إجمالي المبلغ</span>
-                    </div>
-                    <p className="text-sm font-semibold">{booking.total_price} {booking.currency}</p>
-                  </div>
-                </div>
-
-                {booking.guest_info && (
-                  <div className="border-t pt-4">
-                    <p className="text-sm text-gray-600 mb-1">
-                      <span className="font-medium">اسم النزيل:</span> {booking.guest_info.firstName} {booking.guest_info.lastName}
-                    </p>
-                    <p className="text-sm text-gray-600 mb-1">
-                      <span className="font-medium">البريد الإلكتروني:</span> {booking.guest_info.email}
-                    </p>
-                    <p className="text-sm text-gray-600">
-                      <span className="font-medium">رقم الهاتف:</span> {booking.guest_info.phone}
-                    </p>
-                    {booking.guest_info.specialRequests && (
-                      <p className="text-sm text-gray-600 mt-2">
-                        <span className="font-medium">طلبات خاصة:</span> {booking.guest_info.specialRequests}
+                </CardHeader>
+                
+                <CardContent className="space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <div className="flex items-center text-gray-600 mb-2">
+                        <Calendar className="h-4 w-4 ml-2" />
+                        <span className="font-medium">تاريخ الوصول</span>
+                      </div>
+                      <p className="text-sm">
+                        {format(new Date(booking.check_in), 'dd MMMM yyyy', { locale: ar })}
                       </p>
-                    )}
+                    </div>
+                    
+                    <div>
+                      <div className="flex items-center text-gray-600 mb-2">
+                        <Calendar className="h-4 w-4 ml-2" />
+                        <span className="font-medium">تاريخ المغادرة</span>
+                      </div>
+                      <p className="text-sm">
+                        {format(new Date(booking.check_out), 'dd MMMM yyyy', { locale: ar })}
+                      </p>
+                    </div>
                   </div>
-                )}
 
-                {(booking.status === 'pending' || booking.status === 'confirmed') && (
-                  <div className="flex gap-2 pt-4 border-t">
-                    <Button 
-                      variant="outline" 
-                      size="sm" 
-                      className="flex-1"
-                      onClick={() => handleCancelBooking(booking.id)}
-                      disabled={cancelBookingMutation.isPending}
-                    >
-                      <X className="h-4 w-4 ml-1" />
-                      إلغاء الحجز
-                    </Button>
-                    {booking.status === 'pending' && (
-                      <Button size="sm" className="flex-1" disabled>
-                        <Edit className="h-4 w-4 ml-1" />
-                        في انتظار التأكيد
-                      </Button>
-                    )}
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <div className="flex items-center text-gray-600 mb-2">
+                        <Users className="h-4 w-4 ml-2" />
+                        <span className="font-medium">عدد النزلاء</span>
+                      </div>
+                      <p className="text-sm">{booking.guests} نزيل</p>
+                    </div>
+                    
+                    <div>
+                      <div className="flex items-center text-gray-600 mb-2">
+                        <CreditCard className="h-4 w-4 ml-2" />
+                        <span className="font-medium">إجمالي المبلغ</span>
+                      </div>
+                      <p className="text-sm font-semibold">{booking.total_price} {booking.currency}</p>
+                    </div>
                   </div>
-                )}
-              </CardContent>
-            </Card>
-          ))}
+
+                  {guestInfo && Object.keys(guestInfo).length > 0 && (
+                    <div className="border-t pt-4">
+                      {guestInfo.firstName && guestInfo.lastName && (
+                        <p className="text-sm text-gray-600 mb-1">
+                          <span className="font-medium">اسم النزيل:</span> {guestInfo.firstName} {guestInfo.lastName}
+                        </p>
+                      )}
+                      {guestInfo.email && (
+                        <p className="text-sm text-gray-600 mb-1">
+                          <span className="font-medium">البريد الإلكتروني:</span> {guestInfo.email}
+                        </p>
+                      )}
+                      {guestInfo.phone && (
+                        <p className="text-sm text-gray-600">
+                          <span className="font-medium">رقم الهاتف:</span> {guestInfo.phone}
+                        </p>
+                      )}
+                      {guestInfo.specialRequests && (
+                        <p className="text-sm text-gray-600 mt-2">
+                          <span className="font-medium">طلبات خاصة:</span> {guestInfo.specialRequests}
+                        </p>
+                      )}
+                    </div>
+                  )}
+
+                  {(booking.status === 'pending' || booking.status === 'confirmed') && (
+                    <div className="flex gap-2 pt-4 border-t">
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        className="flex-1"
+                        onClick={() => handleCancelBooking(booking.id)}
+                        disabled={cancelBookingMutation.isPending}
+                      >
+                        <X className="h-4 w-4 ml-1" />
+                        إلغاء الحجز
+                      </Button>
+                      {booking.status === 'pending' && (
+                        <Button size="sm" className="flex-1" disabled>
+                          <Edit className="h-4 w-4 ml-1" />
+                          في انتظار التأكيد
+                        </Button>
+                      )}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            );
+          })}
         </div>
       )}
     </div>

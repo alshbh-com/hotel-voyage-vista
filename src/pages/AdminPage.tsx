@@ -12,12 +12,34 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Hotel, Users, Calendar, Settings, Plus, Edit, Trash2, Upload, X } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 
+interface UploadedImage {
+  file: File;
+  url: string;
+  name: string;
+}
+
+interface HotelData {
+  name: string;
+  description: string;
+  address: string;
+  city: string;
+  price_per_night: string;
+  rating: string;
+  amenities: string;
+  images: string;
+}
+
+interface BookingUpdateData {
+  bookingId: string;
+  status: string;
+}
+
 const AdminPage = () => {
   const [activeTab, setActiveTab] = useState('overview');
   const [isAddingHotel, setIsAddingHotel] = useState(false);
-  const [editingHotel, setEditingHotel] = useState(null);
-  const [uploadedImages, setUploadedImages] = useState([]);
-  const [newHotel, setNewHotel] = useState({
+  const [editingHotel, setEditingHotel] = useState<any>(null);
+  const [uploadedImages, setUploadedImages] = useState<UploadedImage[]>([]);
+  const [newHotel, setNewHotel] = useState<HotelData>({
     name: '',
     description: '',
     address: '',
@@ -61,7 +83,7 @@ const AdminPage = () => {
     }
   });
 
-  // Fetch all bookings with user profiles
+  // Fetch all bookings with hotel info
   const { data: bookings } = useQuery({
     queryKey: ['adminBookings'],
     queryFn: async () => {
@@ -76,7 +98,7 @@ const AdminPage = () => {
       
       if (bookingsError) throw bookingsError;
 
-      // Fetch user profiles separately
+      // Fetch user profiles separately to get user names
       if (bookingsData && bookingsData.length > 0) {
         const userIds = [...new Set(bookingsData.map(b => b.user_id))];
         const { data: profilesData, error: profilesError } = await supabase
@@ -84,13 +106,23 @@ const AdminPage = () => {
           .select('id, first_name, last_name')
           .in('id', userIds);
         
-        if (profilesError) throw profilesError;
+        if (profilesError) {
+          console.error('Error fetching profiles:', profilesError);
+          // Return bookings without profile data if profiles fetch fails
+          return bookingsData.map(booking => ({
+            ...booking,
+            user_name: 'مستخدم غير معروف'
+          }));
+        }
 
         // Combine data
-        return bookingsData.map(booking => ({
-          ...booking,
-          profiles: profilesData?.find(p => p.id === booking.user_id) || { first_name: 'مستخدم', last_name: 'غير معروف' }
-        }));
+        return bookingsData.map(booking => {
+          const profile = profilesData?.find(p => p.id === booking.user_id);
+          return {
+            ...booking,
+            user_name: profile ? `${profile.first_name || ''} ${profile.last_name || ''}`.trim() : 'مستخدم غير معروف'
+          };
+        });
       }
       
       return bookingsData || [];
@@ -98,30 +130,30 @@ const AdminPage = () => {
   });
 
   // Handle image upload
-  const handleImageUpload = (e) => {
-    const files = Array.from(e.target.files);
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
     
     files.forEach(file => {
       const reader = new FileReader();
       reader.onload = (event) => {
-        const imageUrl = event.target.result;
+        const imageUrl = event.target?.result as string;
         setUploadedImages(prev => [...prev, { file, url: imageUrl, name: file.name }]);
       };
       reader.readAsDataURL(file);
     });
   };
 
-  const removeImage = (index) => {
+  const removeImage = (index: number) => {
     setUploadedImages(prev => prev.filter((_, i) => i !== index));
   };
 
   // Add hotel mutation
   const addHotelMutation = useMutation({
-    mutationFn: async (hotelData) => {
+    mutationFn: async (hotelData: HotelData) => {
       const amenitiesArray = hotelData.amenities.split(',').map(a => a.trim()).filter(a => a);
       
       // Use uploaded images or default placeholder
-      let imagesArray = [];
+      let imagesArray: string[] = [];
       if (uploadedImages.length > 0) {
         imagesArray = uploadedImages.map(img => img.url);
       } else if (hotelData.images) {
@@ -174,7 +206,7 @@ const AdminPage = () => {
 
   // Delete hotel mutation
   const deleteHotelMutation = useMutation({
-    mutationFn: async (hotelId) => {
+    mutationFn: async (hotelId: string) => {
       const { error } = await supabase
         .from('hotels')
         .delete()
@@ -199,7 +231,7 @@ const AdminPage = () => {
 
   // Update booking status mutation
   const updateBookingMutation = useMutation({
-    mutationFn: async ({ bookingId, status }) => {
+    mutationFn: async ({ bookingId, status }: BookingUpdateData) => {
       const { error } = await supabase
         .from('bookings')
         .update({ status, updated_at: new Date().toISOString() })
@@ -224,13 +256,13 @@ const AdminPage = () => {
     addHotelMutation.mutate(newHotel);
   };
 
-  const handleDeleteHotel = (hotelId) => {
+  const handleDeleteHotel = (hotelId: string) => {
     if (confirm('هل أنت متأكد من حذف هذا الفندق؟')) {
       deleteHotelMutation.mutate(hotelId);
     }
   };
 
-  const handleUpdateBookingStatus = (bookingId, status) => {
+  const handleUpdateBookingStatus = (bookingId: string, status: string) => {
     updateBookingMutation.mutate({ bookingId, status });
   };
 
@@ -294,12 +326,12 @@ const AdminPage = () => {
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {bookings?.map((booking) => (
+                {bookings?.map((booking: any) => (
                   <div key={booking.id} className="flex items-center justify-between p-4 border rounded-lg">
                     <div className="text-right">
                       <p className="font-medium">{booking.hotels?.name}</p>
                       <p className="text-sm text-gray-600">
-                        {booking.profiles?.first_name} {booking.profiles?.last_name}
+                        {booking.user_name}
                       </p>
                     </div>
                     <div className="text-left">
@@ -518,12 +550,12 @@ const AdminPage = () => {
           <Card className="bg-white/80 backdrop-blur-sm border-0 shadow-lg">
             <CardContent className="p-6">
               <div className="space-y-4">
-                {bookings?.map((booking) => (
+                {bookings?.map((booking: any) => (
                   <div key={booking.id} className="flex items-center justify-between p-4 border rounded-lg">
                     <div className="text-right">
                       <p className="font-medium">{booking.hotels?.name}</p>
                       <p className="text-sm text-gray-600">
-                        {booking.profiles?.first_name} {booking.profiles?.last_name}
+                        {booking.user_name}
                       </p>
                       <p className="text-xs text-gray-500">
                         {new Date(booking.check_in).toLocaleDateString('ar-EG')} - 
