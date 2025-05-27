@@ -15,7 +15,6 @@ import BookingsPage from "@/pages/BookingsPage";
 import ProfilePage from "@/pages/ProfilePage";
 import NotificationsPage from "@/pages/NotificationsPage";
 import FavoritesPage from "@/pages/FavoritesPage";
-import DashboardPage from "@/pages/DashboardPage";
 import NotFound from "@/pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -58,7 +57,6 @@ const AppContent = () => {
         <Route path="profile" element={<ProfilePage />} />
         <Route path="notifications" element={<NotificationsPage />} />
         <Route path="favorites" element={<FavoritesPage />} />
-        <Route path="dashboard" element={<DashboardPage />} />
       </Route>
       <Route path="*" element={<NotFound />} />
     </Routes>

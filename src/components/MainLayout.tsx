@@ -1,28 +1,13 @@
 
-import React, { useState } from 'react';
+import React from 'react';
 import { Outlet, Link, useLocation } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
-import { Bell, Heart, Home, Calendar, User, LogOut, Settings } from 'lucide-react';
+import { Bell, Heart, Home, Calendar, User, LogOut } from 'lucide-react';
 
 const MainLayout = () => {
   const { currentUser, logout } = useAuth();
   const location = useLocation();
-  const [showAdminLogin, setShowAdminLogin] = useState(false);
-  const [adminPassword, setAdminPassword] = useState('');
-  const [isAdmin, setIsAdmin] = useState(false);
-
-  const handleAdminLogin = () => {
-    if (adminPassword === '01278006248') {
-      setIsAdmin(true);
-      setShowAdminLogin(false);
-      // تنظيف كلمة المرور من الحالة
-      setAdminPassword('');
-    } else {
-      alert('كلمة مرور خاطئة');
-      setAdminPassword('');
-    }
-  };
 
   const navigation = [
     { name: 'الرئيسية', href: '/', icon: Home },
@@ -57,26 +42,6 @@ const MainLayout = () => {
                   <Heart className="h-5 w-5" />
                 </Button>
               </Link>
-              
-              {isAdmin && (
-                <Link to="/dashboard">
-                  <Button variant="ghost" size="sm" className="text-green-600">
-                    <Settings className="h-5 w-5" />
-                    لوحة التحكم
-                  </Button>
-                </Link>
-              )}
-              
-              {!isAdmin && (
-                <Button 
-                  onClick={() => setShowAdminLogin(true)}
-                  variant="ghost" 
-                  size="sm"
-                  className="text-xs text-gray-400"
-                >
-                  •
-                </Button>
-              )}
               
               <Button onClick={logout} variant="ghost" size="sm" className="text-red-500">
                 <LogOut className="h-5 w-5" />
@@ -113,36 +78,6 @@ const MainLayout = () => {
           })}
         </div>
       </nav>
-
-      {/* Admin Login Modal */}
-      {showAdminLogin && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 max-w-sm mx-4">
-            <h3 className="text-lg font-semibold mb-4">دخول لوحة التحكم</h3>
-            <input
-              type="password"
-              placeholder="كلمة المرور"
-              value={adminPassword}
-              onChange={(e) => setAdminPassword(e.target.value)}
-              className="w-full px-3 py-2 border rounded mb-4"
-              onKeyPress={(e) => e.key === 'Enter' && handleAdminLogin()}
-            />
-            <div className="flex space-x-2 space-x-reverse">
-              <Button onClick={handleAdminLogin} className="flex-1">دخول</Button>
-              <Button 
-                onClick={() => {
-                  setShowAdminLogin(false);
-                  setAdminPassword('');
-                }} 
-                variant="outline" 
-                className="flex-1"
-              >
-                إلغاء
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };
