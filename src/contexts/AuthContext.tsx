@@ -93,19 +93,33 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         console.error('Guest login error:', signInError);
         // إذا فشل تسجيل الدخول بسبب عدم تأكيد الإيميل، سنحاول تأكيده تلقائياً
         if (signInError.message.includes('Email not confirmed')) {
-          console.log('Attempting to confirm email automatically...');
-          // في بيئة التطوير، يمكن تخطي تأكيد الإيميل
-          // سنقوم بإنشاء جلسة مؤقتة
           console.log('Creating temporary guest session...');
-          setCurrentUser({
-            id: guestEmail,
+          // إنشاء كائن User كامل للزائر المؤقت
+          const tempGuestUser: User = {
+            id: `guest_${timestamp}`,
+            aud: 'authenticated',
+            role: 'authenticated',
             email: guestEmail,
+            email_confirmed_at: new Date().toISOString(),
+            phone: null,
+            confirmation_sent_at: null,
+            confirmed_at: new Date().toISOString(),
+            last_sign_in_at: new Date().toISOString(),
+            app_metadata: {
+              provider: 'email',
+              providers: ['email']
+            },
             user_metadata: {
               first_name: 'زائر',
               last_name: 'مؤقت',
               is_guest: true
-            }
-          } as User);
+            },
+            identities: [],
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          };
+          
+          setCurrentUser(tempGuestUser);
           setLoading(false);
           return;
         }
