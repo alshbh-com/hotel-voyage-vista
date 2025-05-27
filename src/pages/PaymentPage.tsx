@@ -35,26 +35,30 @@ const PaymentPage = () => {
   const [isProcessing, setIsProcessing] = useState(false);
 
   useEffect(() => {
+    console.log('PaymentPage mounted, location state:', location.state);
+    
     if (location.state?.paymentData) {
       setPaymentData(location.state.paymentData);
+      console.log('Payment data set:', location.state.paymentData);
     } else {
-      navigate('/');
+      console.log('No payment data found, redirecting to home');
+      navigate('/', { replace: true });
     }
   }, [location.state, navigate]);
 
   const simulatePayment = async () => {
     setIsProcessing(true);
     
-    // Simulate payment processing delay
-    await new Promise(resolve => setTimeout(resolve, 2000));
-    
     try {
-      // Create booking in database
+      // محاكاة تأخير معالجة الدفع
+      await new Promise(resolve => setTimeout(resolve, 3000));
+      
+      // إنشاء الحجز في قاعدة البيانات
       const bookingData = {
         user_id: currentUser?.id,
         hotel_id: paymentData?.hotelId,
-        suite_id: '00000000-0000-0000-0000-000000000000', // Default UUID
-        room_id: '00000000-0000-0000-0000-000000000000', // Default UUID
+        suite_id: '00000000-0000-0000-0000-000000000000',
+        room_id: '00000000-0000-0000-0000-000000000000',
         check_in: paymentData?.checkIn,
         check_out: paymentData?.checkOut,
         guests: paymentData?.guests,
@@ -74,15 +78,17 @@ const PaymentPage = () => {
 
       console.log('تم إنشاء الحجز:', data);
 
-      // Simulate payment success
+      // محاكاة نجاح الدفع
       toast({
-        title: 'تم الدفع بنجاح!',
+        title: 'تم الدفع بنجاح! 💳',
         description: 'تم إنشاء حجزك وسيتم مراجعته من قبل الإدارة',
         duration: 500
       });
 
-      // Navigate to bookings page
-      navigate('/bookings');
+      // التوجه إلى صفحة الحجوزات
+      setTimeout(() => {
+        navigate('/bookings', { replace: true });
+      }, 1000);
       
     } catch (error: any) {
       console.error('خطأ في إنشاء الحجز:', error);
@@ -109,6 +115,7 @@ const PaymentPage = () => {
       return;
     }
 
+    console.log('بدء عملية الدفع...');
     await simulatePayment();
   };
 
@@ -116,6 +123,7 @@ const PaymentPage = () => {
     return (
       <div className="max-w-2xl mx-auto px-4 py-6 pb-20">
         <div className="text-center py-20">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600 mx-auto mb-4"></div>
           <p className="text-gray-500">جاري التحميل...</p>
         </div>
       </div>
@@ -130,7 +138,7 @@ const PaymentPage = () => {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        {/* Booking Summary */}
+        {/* ملخص الحجز */}
         <Card className="bg-white/80 backdrop-blur-sm border-0 shadow-lg">
           <CardHeader>
             <CardTitle className="flex items-center">
@@ -182,16 +190,16 @@ const PaymentPage = () => {
           </CardContent>
         </Card>
 
-        {/* Payment Form */}
+        {/* نموذج الدفع */}
         <Card className="bg-white/80 backdrop-blur-sm border-0 shadow-lg">
           <CardHeader>
             <CardTitle className="flex items-center">
               <CreditCard className="h-5 w-5 ml-2" />
-              بيانات الدفع
+              بيانات الدفع الوهمي
             </CardTitle>
             <div className="flex items-center text-sm text-gray-500">
               <Lock className="h-4 w-4 ml-1" />
-              <span>دفع آمن ومشفر (وهمي للتطوير)</span>
+              <span>نظام دفع وهمي للتطوير</span>
             </div>
           </CardHeader>
           <CardContent>
@@ -202,7 +210,7 @@ const PaymentPage = () => {
                   id="cardHolder"
                   value={cardHolder}
                   onChange={(e) => setCardHolder(e.target.value)}
-                  placeholder="أدخل الاسم كما هو مكتوب على البطاقة"
+                  placeholder="أدخل أي اسم للاختبار"
                   className="text-right"
                   required
                 />
@@ -233,7 +241,7 @@ const PaymentPage = () => {
                       }
                       setExpiryDate(value);
                     }}
-                    placeholder="MM/YY"
+                    placeholder="12/26"
                     maxLength={5}
                     required
                   />
@@ -252,13 +260,13 @@ const PaymentPage = () => {
                 </div>
               </div>
 
-              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mt-6">
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mt-6">
                 <div className="flex items-center">
-                  <CheckCircle className="h-5 w-5 text-yellow-600 ml-2" />
-                  <span className="text-yellow-800 font-medium">نظام دفع وهمي</span>
+                  <CheckCircle className="h-5 w-5 text-blue-600 ml-2" />
+                  <span className="text-blue-800 font-medium">نظام دفع وهمي للتطوير</span>
                 </div>
-                <p className="text-yellow-700 text-sm mt-1">
-                  هذا نظام دفع وهمي للتطوير. يمكنك استخدام أي أرقام للاختبار.
+                <p className="text-blue-700 text-sm mt-1">
+                  يمكنك استخدام أي أرقام للاختبار. سيتم إنشاء الحجز ومحاكاة عملية الدفع.
                 </p>
               </div>
 
@@ -270,12 +278,12 @@ const PaymentPage = () => {
                 {isProcessing ? (
                   <>
                     <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white ml-2"></div>
-                    جاري معالجة الدفع...
+                    جاري معالجة الدفع الوهمي...
                   </>
                 ) : (
                   <>
                     <Lock className="h-4 w-4 ml-2" />
-                    دفع {paymentData.totalPrice} {paymentData.currency}
+                    دفع {paymentData.totalPrice} {paymentData.currency} (وهمي)
                   </>
                 )}
               </Button>

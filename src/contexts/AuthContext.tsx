@@ -48,23 +48,51 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const loginAsGuest = async () => {
-    // Create a temporary guest account
-    const guestEmail = `guest_${Date.now()}@temp.com`;
-    const guestPassword = 'guest123456';
-    
-    const { error } = await supabase.auth.signUp({
-      email: guestEmail,
-      password: guestPassword,
-      options: {
-        data: {
-          first_name: 'زائر',
-          last_name: 'مؤقت',
-          is_guest: true
+    try {
+      // تنظيف الجلسة الحالية أولاً
+      await supabase.auth.signOut();
+      
+      // إنشاء حساب زائر جديد مع معرف فريد
+      const guestEmail = `guest_${Date.now()}_${Math.random().toString(36).substr(2, 9)}@temp.com`;
+      const guestPassword = `guest${Date.now()}${Math.random().toString(36).substr(2, 6)}`;
+      
+      console.log('Creating guest account:', guestEmail);
+      
+      const { data, error } = await supabase.auth.signUp({
+        email: guestEmail,
+        password: guestPassword,
+        options: {
+          data: {
+            first_name: 'زائر',
+            last_name: 'مؤقت',
+            is_guest: true
+          },
+          emailRedirectTo: undefined // تجنب إرسال إيميل تأكيد
         }
+      });
+      
+      if (error) {
+        console.error('Guest signup error:', error);
+        throw error;
       }
-    });
-    
-    if (error) throw error;
+      
+      console.log('Guest account created successfully:', data);
+      
+      // تسجيل دخول مباشر بالحساب الجديد
+      const { error: loginError } = await supabase.auth.signInWithPassword({
+        email: guestEmail,
+        password: guestPassword
+      });
+      
+      if (loginError) {
+        console.error('Guest login error:', loginError);
+        throw loginError;
+      }
+      
+    } catch (error) {
+      console.error('Guest login failed:', error);
+      throw error;
+    }
   };
 
   const logout = async () => {
