@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
@@ -9,8 +8,9 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Hotel, Users, Calendar, Settings, Plus, Edit, Trash2, Upload, X, Check, CheckCircle, XCircle } from 'lucide-react';
+import { Hotel, Users, Calendar, Settings, Plus, Edit, Trash2, Upload, X, Check, CheckCircle, XCircle, Send } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
+import NotificationSender from '@/components/NotificationSender';
 
 interface UploadedImage {
   file: File;
@@ -78,7 +78,7 @@ const AdminPage = () => {
     }
   });
 
-  // Fetch all bookings with hotel and user info
+  // Fetch all bookings with hotel info
   const { data: bookings } = useQuery({
     queryKey: ['adminBookings'],
     queryFn: async () => {
@@ -86,8 +86,7 @@ const AdminPage = () => {
         .from('bookings')
         .select(`
           *,
-          hotels!inner(name, city),
-          profiles!inner(first_name, last_name)
+          hotels!inner(name, city)
         `)
         .order('created_at', { ascending: false });
       
@@ -159,14 +158,18 @@ const AdminPage = () => {
         amenities: '',
         images: ''
       });
-      toast({ title: 'تم إضافة الفندق بنجاح' });
+      toast({ 
+        title: 'تم إضافة الفندق بنجاح',
+        duration: 500 
+      });
     },
-    onError: (error) => {
+    onError: (error: any) => {
       console.error('Error adding hotel:', error);
       toast({
         title: 'خطأ',
         description: 'حدث خطأ أثناء إضافة الفندق',
-        variant: 'destructive'
+        variant: 'destructive',
+        duration: 500
       });
     }
   });
@@ -185,14 +188,18 @@ const AdminPage = () => {
       queryClient.invalidateQueries({ queryKey: ['adminHotels'] });
       queryClient.invalidateQueries({ queryKey: ['adminStats'] });
       queryClient.invalidateQueries({ queryKey: ['hotels'] });
-      toast({ title: 'تم حذف الفندق بنجاح' });
+      toast({ 
+        title: 'تم حذف الفندق بنجاح',
+        duration: 500 
+      });
     },
-    onError: (error) => {
+    onError: (error: any) => {
       console.error('Error deleting hotel:', error);
       toast({
         title: 'خطأ',
         description: 'حدث خطأ أثناء حذف الفندق',
-        variant: 'destructive'
+        variant: 'destructive',
+        duration: 500
       });
     }
   });
@@ -215,10 +222,8 @@ const AdminPage = () => {
       // Simulate payment processing
       if (status === 'confirmed') {
         console.log('Payment confirmed - Money transferred to hotel account');
-        // Here you would integrate with actual payment processor
       } else if (status === 'cancelled') {
         console.log('Booking cancelled - Refund initiated to customer');
-        // Here you would process refund
       }
     },
     onSuccess: (_, variables) => {
@@ -228,21 +233,24 @@ const AdminPage = () => {
       if (variables.status === 'confirmed') {
         toast({ 
           title: 'تم تأكيد الحجز',
-          description: 'تم تحويل المبلغ لحساب الفندق'
+          description: 'تم تحويل المبلغ لحساب الفندق',
+          duration: 500
         });
       } else if (variables.status === 'cancelled') {
         toast({ 
           title: 'تم إلغاء الحجز',
-          description: 'تم بدء إجراءات استرداد المبلغ للعميل'
+          description: 'تم بدء إجراءات استرداد المبلغ للعميل',
+          duration: 500
         });
       }
     },
-    onError: (error) => {
+    onError: (error: any) => {
       console.error('Error updating booking:', error);
       toast({
         title: 'خطأ',
         description: 'حدث خطأ أثناء تحديث الحجز',
-        variant: 'destructive'
+        variant: 'destructive',
+        duration: 500
       });
     }
   });
@@ -274,10 +282,11 @@ const AdminPage = () => {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full grid-cols-4 mb-8">
+        <TabsList className="grid w-full grid-cols-5 mb-8">
           <TabsTrigger value="overview">نظرة عامة</TabsTrigger>
           <TabsTrigger value="hotels">الفنادق</TabsTrigger>
           <TabsTrigger value="bookings">الحجوزات</TabsTrigger>
+          <TabsTrigger value="notifications">الإشعارات</TabsTrigger>
           <TabsTrigger value="settings">الإعدادات</TabsTrigger>
         </TabsList>
 
@@ -330,9 +339,7 @@ const AdminPage = () => {
                   <div key={booking.id} className="flex items-center justify-between p-4 border rounded-lg">
                     <div className="text-right">
                       <p className="font-medium">{booking.hotels?.name}</p>
-                      <p className="text-sm text-gray-600">
-                        {booking.profiles ? `${booking.profiles.first_name} ${booking.profiles.last_name}` : 'مستخدم غير معروف'}
-                      </p>
+                      <p className="text-sm text-gray-600">مستخدم {booking.user_id.slice(0, 8)}</p>
                     </div>
                     <div className="text-left">
                       <Badge 
@@ -554,9 +561,7 @@ const AdminPage = () => {
                   <div key={booking.id} className="flex items-center justify-between p-4 border rounded-lg">
                     <div className="text-right">
                       <p className="font-medium">{booking.hotels?.name}</p>
-                      <p className="text-sm text-gray-600">
-                        {booking.profiles ? `${booking.profiles.first_name} ${booking.profiles.last_name}` : 'مستخدم غير معروف'}
-                      </p>
+                      <p className="text-sm text-gray-600">مستخدم {booking.user_id.slice(0, 8)}</p>
                       <p className="text-xs text-gray-500">
                         {new Date(booking.check_in).toLocaleDateString('ar-EG')} - 
                         {new Date(booking.check_out).toLocaleDateString('ar-EG')}
@@ -619,6 +624,11 @@ const AdminPage = () => {
           </Card>
         </TabsContent>
 
+        <TabsContent value="notifications">
+          <h2 className="text-2xl font-bold mb-6">إدارة الإشعارات</h2>
+          <NotificationSender />
+        </TabsContent>
+
         <TabsContent value="settings">
           <h2 className="text-2xl font-bold mb-6">إعدادات التطبيق</h2>
           <Card className="bg-white/80 backdrop-blur-sm border-0 shadow-lg">
@@ -643,6 +653,13 @@ const AdminPage = () => {
                   <Badge className="bg-blue-100 text-blue-800">وهمي (للتطوير)</Badge>
                   <p className="text-sm text-gray-500 mt-1">
                     سيتم تطوير نظام دفع حقيقي لاحقاً
+                  </p>
+                </div>
+                <div>
+                  <Label>رقم الدعم الفني (واتساب)</Label>
+                  <Input value="201204486263" readOnly className="bg-gray-100" />
+                  <p className="text-sm text-gray-500 mt-1">
+                    هذا الرقم يظهر للعملاء في صفحة الحجوزات للدعم المباشر
                   </p>
                 </div>
                 <p className="text-gray-600">ستتوفر إعدادات إضافية قريباً...</p>

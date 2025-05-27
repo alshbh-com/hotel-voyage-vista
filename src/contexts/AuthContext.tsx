@@ -34,12 +34,36 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const register = async (email: string, password: string) => {
-    const { error } = await supabase.auth.signUp({ email, password });
+    const { error } = await supabase.auth.signUp({ 
+      email, 
+      password,
+      options: {
+        data: {
+          first_name: '',
+          last_name: ''
+        }
+      }
+    });
     if (error) throw error;
   };
 
   const loginAsGuest = async () => {
-    const { error } = await supabase.auth.signInAnonymously();
+    // Create a temporary guest account
+    const guestEmail = `guest_${Date.now()}@temp.com`;
+    const guestPassword = 'guest123456';
+    
+    const { error } = await supabase.auth.signUp({
+      email: guestEmail,
+      password: guestPassword,
+      options: {
+        data: {
+          first_name: 'زائر',
+          last_name: 'مؤقت',
+          is_guest: true
+        }
+      }
+    });
+    
     if (error) throw error;
   };
 
@@ -52,6 +76,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     // Set up auth state listener
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event, session) => {
+        console.log('Auth state changed:', event, session);
         setSession(session);
         setCurrentUser(session?.user ?? null);
         setLoading(false);

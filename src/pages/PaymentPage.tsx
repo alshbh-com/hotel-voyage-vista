@@ -1,287 +1,285 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
-import { useAuth } from '@/contexts/AuthContext';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
-import { ArrowRight, CreditCard, Smartphone, Banknote } from 'lucide-react';
+import { CreditCard, Lock, CheckCircle, Calendar, Users, MapPin } from 'lucide-react';
+import { useAuth } from '@/contexts/AuthContext';
+import { supabase } from '@/integrations/supabase/client';
 import { toast } from '@/hooks/use-toast';
+import { format } from 'date-fns';
+import { ar } from 'date-fns/locale';
+
+interface PaymentData {
+  hotelId: string;
+  hotelName: string;
+  checkIn: string;
+  checkOut: string;
+  guests: number;
+  totalPrice: number;
+  currency: string;
+  guestInfo: any;
+}
 
 const PaymentPage = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const { currentUser } = useAuth();
-  const queryClient = useQueryClient();
-  const booking = location.state?.booking;
-  
-  const [paymentMethod, setPaymentMethod] = useState('card');
-  const [cardInfo, setCardInfo] = useState({
-    number: '',
-    expiry: '',
-    cvv: '',
-    name: ''
-  });
+  const [paymentData, setPaymentData] = useState<PaymentData | null>(null);
+  const [cardNumber, setCardNumber] = useState('');
+  const [expiryDate, setExpiryDate] = useState('');
+  const [cvv, setCvv] = useState('');
+  const [cardHolder, setCardHolder] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
 
-  if (!booking) {
-    navigate('/');
-    return null;
-  }
+  useEffect(() => {
+    if (location.state?.paymentData) {
+      setPaymentData(location.state.paymentData);
+    } else {
+      navigate('/');
+    }
+  }, [location.state, navigate]);
 
-  if (!currentUser) {
-    navigate('/login');
-    return null;
-  }
+  const simulatePayment = async () => {
+    setIsProcessing(true);
+    
+    // Simulate payment processing delay
+    await new Promise(resolve => setTimeout(resolve, 2000));
+    
+    try {
+      // Create booking in database
+      const bookingData = {
+        user_id: currentUser?.id,
+        hotel_id: paymentData?.hotelId,
+        suite_id: '00000000-0000-0000-0000-000000000000', // Default UUID
+        room_id: '00000000-0000-0000-0000-000000000000', // Default UUID
+        check_in: paymentData?.checkIn,
+        check_out: paymentData?.checkOut,
+        guests: paymentData?.guests,
+        total_price: paymentData?.totalPrice,
+        currency: paymentData?.currency || 'EGP',
+        guest_info: paymentData?.guestInfo,
+        status: 'pending'
+      };
 
-  // Create booking mutation
-  const createBookingMutation = useMutation({
-    mutationFn: async () => {
-      console.log('Creating booking for user:', currentUser.id);
-      console.log('Booking data:', booking);
-      
       const { data, error } = await supabase
         .from('bookings')
-        .insert({
-          user_id: currentUser.id,
-          hotel_id: booking.hotelId || 'hotel_id_placeholder',
-          suite_id: booking.suiteId || 'suite_id_placeholder', 
-          room_id: booking.roomId || 'room_id_placeholder',
-          check_in: booking.checkIn.toISOString().split('T')[0],
-          check_out: booking.checkOut.toISOString().split('T')[0],
-          guests: booking.guests,
-          total_price: Math.round(booking.total * 1.09),
-          currency: booking.currency || 'EGP',
-          status: paymentMethod === 'cash' ? 'pending' : 'confirmed',
-          guest_info: booking.guestInfo
-        })
+        .insert(bookingData)
         .select()
         .single();
 
-      if (error) {
-        console.error('Booking creation error:', error);
-        throw error;
-      }
+      if (error) throw error;
 
-      console.log('Booking created successfully:', data);
-      return data;
-    },
-    onSuccess: (data) => {
-      console.log('Booking mutation succeeded:', data);
-      queryClient.invalidateQueries({ queryKey: ['bookings'] });
-      
+      console.log('تم إنشاء الحجز:', data);
+
+      // Simulate payment success
       toast({
         title: 'تم الدفع بنجاح!',
-        description: 'سيتم إرسال تأكيد الحجز على بريدك الإلكتروني',
+        description: 'تم إنشاء حجزك وسيتم مراجعته من قبل الإدارة',
+        duration: 500
       });
+
+      // Navigate to bookings page
+      navigate('/bookings');
       
-      setTimeout(() => {
-        navigate('/bookings');
-      }, 2000);
-    },
-    onError: (error) => {
-      console.error('Booking mutation failed:', error);
+    } catch (error: any) {
+      console.error('خطأ في إنشاء الحجز:', error);
       toast({
-        title: 'فشل في إنشاء الحجز',
-        description: 'حدث خطأ أثناء معالجة طلبك. يرجى المحاولة مرة أخرى.',
-        variant: 'destructive'
+        title: 'خطأ في الدفع',
+        description: 'حدث خطأ أثناء معالجة الدفع، يرجى المحاولة مرة أخرى',
+        variant: 'destructive',
+        duration: 500
       });
     }
-  });
-
-  const handlePayment = async (e) => {
-    e.preventDefault();
-    setIsProcessing(true);
-
-    try {
-      // Simulate payment processing delay
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      
-      // Create the booking
-      await createBookingMutation.mutateAsync();
-      
-    } catch (error) {
-      console.error('Payment processing error:', error);
-    } finally {
-      setIsProcessing(false);
-    }
+    
+    setIsProcessing(false);
   };
+
+  const handlePayment = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!cardNumber || !expiryDate || !cvv || !cardHolder) {
+      toast({
+        title: 'يرجى ملء جميع البيانات',
+        variant: 'destructive',
+        duration: 500
+      });
+      return;
+    }
+
+    await simulatePayment();
+  };
+
+  if (!paymentData) {
+    return (
+      <div className="max-w-2xl mx-auto px-4 py-6 pb-20">
+        <div className="text-center py-20">
+          <p className="text-gray-500">جاري التحميل...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-6 pb-20">
-      <Button variant="ghost" className="mb-4" onClick={() => navigate(-1)}>
-        <ArrowRight className="h-4 w-4 ml-2" />
-        العودة
-      </Button>
+      <div className="mb-8">
+        <h1 className="text-3xl font-bold text-gray-800 mb-2">إتمام الدفع</h1>
+        <p className="text-gray-600">أدخل بيانات البطاقة لإتمام الحجز</p>
+      </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        {/* Payment Form */}
+        {/* Booking Summary */}
         <Card className="bg-white/80 backdrop-blur-sm border-0 shadow-lg">
           <CardHeader>
-            <CardTitle className="text-2xl text-right">إكمال الدفع</CardTitle>
+            <CardTitle className="flex items-center">
+              <Calendar className="h-5 w-5 ml-2" />
+              ملخص الحجز
+            </CardTitle>
           </CardHeader>
-          
-          <CardContent>
-            <form onSubmit={handlePayment} className="space-y-6">
-              {/* Payment Method Selection */}
-              <div className="space-y-4">
-                <Label className="text-lg font-semibold text-right block">طريقة الدفع</Label>
-                <RadioGroup value={paymentMethod} onValueChange={setPaymentMethod}>
-                  <div className="flex items-center space-x-2 space-x-reverse p-4 border rounded-lg">
-                    <RadioGroupItem value="card" id="card" />
-                    <Label htmlFor="card" className="flex items-center cursor-pointer">
-                      <CreditCard className="ml-2 h-5 w-5" />
-                      بطاقة ائتمان / خصم
-                    </Label>
-                  </div>
-                  
-                  <div className="flex items-center space-x-2 space-x-reverse p-4 border rounded-lg">
-                    <RadioGroupItem value="mobile" id="mobile" />
-                    <Label htmlFor="mobile" className="flex items-center cursor-pointer">
-                      <Smartphone className="ml-2 h-5 w-5" />
-                      محفظة إلكترونية
-                    </Label>
-                  </div>
-                  
-                  <div className="flex items-center space-x-2 space-x-reverse p-4 border rounded-lg">
-                    <RadioGroupItem value="cash" id="cash" />
-                    <Label htmlFor="cash" className="flex items-center cursor-pointer">
-                      <Banknote className="ml-2 h-5 w-5" />
-                      الدفع عند الوصول
-                    </Label>
-                  </div>
-                </RadioGroup>
+          <CardContent className="space-y-4">
+            <div className="border-b pb-4">
+              <h3 className="font-semibold text-lg">{paymentData.hotelName}</h3>
+              <div className="flex items-center text-gray-500 mt-1">
+                <MapPin className="h-4 w-4 ml-1" />
+                <span className="text-sm">فندق محجوز</span>
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              <div className="flex justify-between">
+                <span className="text-gray-600">تاريخ الوصول:</span>
+                <span className="font-medium">
+                  {format(new Date(paymentData.checkIn), 'dd MMMM yyyy', { locale: ar })}
+                </span>
+              </div>
+              
+              <div className="flex justify-between">
+                <span className="text-gray-600">تاريخ المغادرة:</span>
+                <span className="font-medium">
+                  {format(new Date(paymentData.checkOut), 'dd MMMM yyyy', { locale: ar })}
+                </span>
               </div>
 
-              {/* Card Payment Form */}
-              {paymentMethod === 'card' && (
-                <div className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="cardName" className="text-right block">اسم حامل البطاقة</Label>
-                    <Input
-                      id="cardName"
-                      value={cardInfo.name}
-                      onChange={(e) => setCardInfo({...cardInfo, name: e.target.value})}
-                      className="text-right"
-                      placeholder="الاسم كما هو مكتوب على البطاقة"
-                      required
-                    />
-                  </div>
-                  
-                  <div className="space-y-2">
-                    <Label htmlFor="cardNumber" className="text-right block">رقم البطاقة</Label>
-                    <Input
-                      id="cardNumber"
-                      value={cardInfo.number}
-                      onChange={(e) => setCardInfo({...cardInfo, number: e.target.value})}
-                      className="text-left"
-                      placeholder="1234 5678 9012 3456"
-                      required
-                    />
-                  </div>
-                  
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="expiry" className="text-right block">تاريخ الانتهاء</Label>
-                      <Input
-                        id="expiry"
-                        value={cardInfo.expiry}
-                        onChange={(e) => setCardInfo({...cardInfo, expiry: e.target.value})}
-                        className="text-left"
-                        placeholder="MM/YY"
-                        required
-                      />
-                    </div>
-                    
-                    <div className="space-y-2">
-                      <Label htmlFor="cvv" className="text-right block">CVV</Label>
-                      <Input
-                        id="cvv"
-                        value={cardInfo.cvv}
-                        onChange={(e) => setCardInfo({...cardInfo, cvv: e.target.value})}
-                        className="text-left"
-                        placeholder="123"
-                        required
-                      />
-                    </div>
-                  </div>
-                </div>
-              )}
+              <div className="flex justify-between">
+                <span className="text-gray-600">عدد النزلاء:</span>
+                <span className="font-medium flex items-center">
+                  <Users className="h-4 w-4 ml-1" />
+                  {paymentData.guests}
+                </span>
+              </div>
+            </div>
 
-              {/* Mobile Payment */}
-              {paymentMethod === 'mobile' && (
-                <div className="text-center p-8 border-2 border-dashed border-gray-300 rounded-lg">
-                  <Smartphone className="h-16 w-16 mx-auto text-gray-400 mb-4" />
-                  <p className="text-gray-600">سيتم توجيهك لتطبيق المحفظة الإلكترونية</p>
-                </div>
-              )}
-
-              {/* Cash Payment */}
-              {paymentMethod === 'cash' && (
-                <div className="text-center p-8 bg-yellow-50 border border-yellow-200 rounded-lg">
-                  <Banknote className="h-16 w-16 mx-auto text-yellow-600 mb-4" />
-                  <p className="text-yellow-800 font-medium mb-2">الدفع عند الوصول</p>
-                  <p className="text-yellow-700 text-sm">
-                    يمكنك دفع المبلغ نقداً أو بالبطاقة عند وصولك للفندق
-                  </p>
-                </div>
-              )}
-
-              <Button 
-                type="submit" 
-                className="w-full bg-gradient-to-r from-green-500 to-blue-500 hover:from-green-600 hover:to-blue-600"
-                disabled={isProcessing || createBookingMutation.isPending}
-              >
-                {isProcessing ? 'جاري المعالجة...' : 
-                 paymentMethod === 'cash' ? 'تأكيد الحجز' : 'إتمام الدفع'}
-              </Button>
-            </form>
+            <div className="border-t pt-4">
+              <div className="flex justify-between text-lg font-bold">
+                <span>الإجمالي:</span>
+                <span className="text-green-600">
+                  {paymentData.totalPrice} {paymentData.currency}
+                </span>
+              </div>
+            </div>
           </CardContent>
         </Card>
 
-        {/* Payment Summary */}
-        <Card className="bg-white/80 backdrop-blur-sm border-0 shadow-lg h-fit">
+        {/* Payment Form */}
+        <Card className="bg-white/80 backdrop-blur-sm border-0 shadow-lg">
           <CardHeader>
-            <CardTitle className="text-xl text-right">ملخص الدفع</CardTitle>
+            <CardTitle className="flex items-center">
+              <CreditCard className="h-5 w-5 ml-2" />
+              بيانات الدفع
+            </CardTitle>
+            <div className="flex items-center text-sm text-gray-500">
+              <Lock className="h-4 w-4 ml-1" />
+              <span>دفع آمن ومشفر (وهمي للتطوير)</span>
+            </div>
           </CardHeader>
-          
-          <CardContent className="space-y-4">
-            <div className="text-right">
-              <h3 className="font-semibold">{booking.hotelName}</h3>
-              <p className="text-gray-600">{booking.suiteName}</p>
-              <p className="text-gray-600">{booking.roomName}</p>
-            </div>
-
-            <div className="space-y-2 py-4 border-t border-b">
-              <div className="flex justify-between">
-                <span>المبلغ الأساسي:</span>
-                <span>{booking.currency} {booking.total}</span>
+          <CardContent>
+            <form onSubmit={handlePayment} className="space-y-4">
+              <div>
+                <Label htmlFor="cardHolder">اسم حامل البطاقة</Label>
+                <Input
+                  id="cardHolder"
+                  value={cardHolder}
+                  onChange={(e) => setCardHolder(e.target.value)}
+                  placeholder="أدخل الاسم كما هو مكتوب على البطاقة"
+                  className="text-right"
+                  required
+                />
               </div>
-              <div className="flex justify-between">
-                <span>الضرائب والرسوم:</span>
-                <span>{booking.currency} {(booking.total * 0.14).toFixed(0)}</span>
-              </div>
-              <div className="flex justify-between">
-                <span>خصم الحجز المبكر:</span>
-                <span className="text-green-600">-{booking.currency} {(booking.total * 0.05).toFixed(0)}</span>
-              </div>
-            </div>
 
-            <div className="flex justify-between font-bold text-lg">
-              <span>المبلغ الإجمالي:</span>
-              <span className="text-purple-600">
-                {booking.currency} {(booking.total * 1.09).toFixed(0)}
-              </span>
-            </div>
+              <div>
+                <Label htmlFor="cardNumber">رقم البطاقة</Label>
+                <Input
+                  id="cardNumber"
+                  value={cardNumber}
+                  onChange={(e) => setCardNumber(e.target.value.replace(/\s/g, '').replace(/(\d{4})/g, '$1 ').trim())}
+                  placeholder="1234 5678 9012 3456"
+                  maxLength={19}
+                  required
+                />
+              </div>
 
-            <div className="text-center text-sm text-gray-500 pt-4 border-t">
-              <p>جميع الأسعار شاملة الضرائب والرسوم</p>
-              <p>يمكن إلغاء الحجز مجاناً حتى 24 ساعة قبل الوصول</p>
-            </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="expiryDate">تاريخ الانتهاء</Label>
+                  <Input
+                    id="expiryDate"
+                    value={expiryDate}
+                    onChange={(e) => {
+                      let value = e.target.value.replace(/\D/g, '');
+                      if (value.length >= 2) {
+                        value = value.substring(0, 2) + '/' + value.substring(2, 4);
+                      }
+                      setExpiryDate(value);
+                    }}
+                    placeholder="MM/YY"
+                    maxLength={5}
+                    required
+                  />
+                </div>
+
+                <div>
+                  <Label htmlFor="cvv">CVV</Label>
+                  <Input
+                    id="cvv"
+                    value={cvv}
+                    onChange={(e) => setCvv(e.target.value.replace(/\D/g, ''))}
+                    placeholder="123"
+                    maxLength={3}
+                    required
+                  />
+                </div>
+              </div>
+
+              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mt-6">
+                <div className="flex items-center">
+                  <CheckCircle className="h-5 w-5 text-yellow-600 ml-2" />
+                  <span className="text-yellow-800 font-medium">نظام دفع وهمي</span>
+                </div>
+                <p className="text-yellow-700 text-sm mt-1">
+                  هذا نظام دفع وهمي للتطوير. يمكنك استخدام أي أرقام للاختبار.
+                </p>
+              </div>
+
+              <Button 
+                type="submit" 
+                className="w-full mt-6 bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700"
+                disabled={isProcessing}
+              >
+                {isProcessing ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white ml-2"></div>
+                    جاري معالجة الدفع...
+                  </>
+                ) : (
+                  <>
+                    <Lock className="h-4 w-4 ml-2" />
+                    دفع {paymentData.totalPrice} {paymentData.currency}
+                  </>
+                )}
+              </Button>
+            </form>
           </CardContent>
         </Card>
       </div>

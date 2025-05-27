@@ -6,7 +6,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Calendar, MapPin, Users, CreditCard, Edit, X } from 'lucide-react';
+import { Calendar, MapPin, Users, CreditCard, Edit, X, MessageCircle, Phone } from 'lucide-react';
 import { format } from 'date-fns';
 import { ar } from 'date-fns/locale';
 import { toast } from '@/hooks/use-toast';
@@ -65,22 +65,30 @@ const BookingsPage = () => {
       queryClient.invalidateQueries({ queryKey: ['bookings'] });
       toast({
         title: 'تم إلغاء الحجز',
-        description: 'تم إلغاء حجزك بنجاح'
+        description: 'تم إلغاء حجزك بنجاح وسيتم استرداد المبلغ',
+        duration: 500
       });
     },
     onError: () => {
       toast({
         title: 'خطأ',
         description: 'حدث خطأ أثناء إلغاء الحجز',
-        variant: 'destructive'
+        variant: 'destructive',
+        duration: 500
       });
     }
   });
 
   const handleCancelBooking = (bookingId: string) => {
-    if (confirm('هل أنت متأكد من إلغاء هذا الحجز؟')) {
+    if (confirm('هل أنت متأكد من إلغاء هذا الحجز؟ سيتم استرداد المبلغ في حالة الموافقة.')) {
       cancelBookingMutation.mutate(bookingId);
     }
+  };
+
+  const handleWhatsAppSupport = () => {
+    const phoneNumber = '201204486263';
+    const message = encodeURIComponent('مرحباً، أحتاج مساعدة بخصوص حجزي');
+    window.open(`https://wa.me/${phoneNumber}?text=${message}`, '_blank');
   };
 
   if (!currentUser) {
@@ -234,8 +242,8 @@ const BookingsPage = () => {
                     </div>
                   )}
 
-                  {(booking.status === 'pending' || booking.status === 'confirmed') && (
-                    <div className="flex gap-2 pt-4 border-t">
+                  <div className="flex gap-2 pt-4 border-t">
+                    {(booking.status === 'pending' || booking.status === 'confirmed') && (
                       <Button 
                         variant="outline" 
                         size="sm" 
@@ -246,14 +254,24 @@ const BookingsPage = () => {
                         <X className="h-4 w-4 ml-1" />
                         إلغاء الحجز
                       </Button>
-                      {booking.status === 'pending' && (
-                        <Button size="sm" className="flex-1" disabled>
-                          <Edit className="h-4 w-4 ml-1" />
-                          في انتظار التأكيد
-                        </Button>
-                      )}
-                    </div>
-                  )}
+                    )}
+                    
+                    <Button 
+                      size="sm" 
+                      className="flex-1 bg-green-600 hover:bg-green-700"
+                      onClick={handleWhatsAppSupport}
+                    >
+                      <MessageCircle className="h-4 w-4 ml-1" />
+                      دعم واتساب
+                    </Button>
+                    
+                    {booking.status === 'pending' && (
+                      <Button size="sm" variant="outline" className="flex-1" disabled>
+                        <Edit className="h-4 w-4 ml-1" />
+                        في انتظار التأكيد
+                      </Button>
+                    )}
+                  </div>
                 </CardContent>
               </Card>
             );

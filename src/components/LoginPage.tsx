@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useAuth } from '@/contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { toast } from '@/hooks/use-toast';
+import { supabase } from '@/integrations/supabase/client';
 
 const LoginPage = () => {
   const [email, setEmail] = useState('');
@@ -29,12 +30,17 @@ const LoginPage = () => {
       } else {
         await register(email, password);
       }
-      toast({ title: 'تم تسجيل الدخول بنجاح!' });
-    } catch (error) {
+      toast({ 
+        title: 'تم تسجيل الدخول بنجاح!',
+        duration: 500
+      });
+      navigate('/', { replace: true });
+    } catch (error: any) {
       toast({ 
         title: 'خطأ في تسجيل الدخول', 
-        description: 'يرجى التحقق من البيانات والمحاولة مرة أخرى',
-        variant: 'destructive' 
+        description: error.message || 'يرجى التحقق من البيانات والمحاولة مرة أخرى',
+        variant: 'destructive',
+        duration: 500
       });
     }
   };
@@ -42,19 +48,51 @@ const LoginPage = () => {
   const handleGuestLogin = async () => {
     try {
       await loginAsGuest();
-      toast({ title: 'تم الدخول كزائر بنجاح!' });
-    } catch (error) {
+      toast({ 
+        title: 'تم الدخول كزائر بنجاح!',
+        duration: 500
+      });
+      navigate('/', { replace: true });
+    } catch (error: any) {
       toast({ 
         title: 'خطأ في الدخول كزائر',
-        variant: 'destructive' 
+        description: error.message,
+        variant: 'destructive',
+        duration: 500
       });
     }
   };
 
-  const handleSocialLogin = (provider: string) => {
+  const handleGoogleLogin = async () => {
+    try {
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: `${window.location.origin}/`
+        }
+      });
+      
+      if (error) throw error;
+      
+      toast({ 
+        title: 'جاري تسجيل الدخول عبر جوجل...',
+        duration: 500
+      });
+    } catch (error: any) {
+      toast({ 
+        title: 'خطأ في تسجيل الدخول عبر جوجل',
+        description: error.message,
+        variant: 'destructive',
+        duration: 500
+      });
+    }
+  };
+
+  const handleFacebookLogin = () => {
     toast({ 
-      title: `تسجيل الدخول عبر ${provider}`, 
-      description: 'هذه الميزة ستتوفر قريباً' 
+      title: 'تسجيل الدخول عبر فيسبوك', 
+      description: 'هذه الميزة ستتوفر قريباً',
+      duration: 500
     });
   };
 
@@ -110,14 +148,14 @@ const LoginPage = () => {
           
           <div className="space-y-3">
             <Button
-              onClick={() => handleSocialLogin('فيسبوك')}
+              onClick={handleFacebookLogin}
               className="w-full bg-blue-600 hover:bg-blue-700"
             >
               تسجيل الدخول عبر فيسبوك
             </Button>
             
             <Button
-              onClick={() => handleSocialLogin('جوجل')}
+              onClick={handleGoogleLogin}
               className="w-full bg-red-500 hover:bg-red-600"
             >
               تسجيل الدخول عبر جوجل
