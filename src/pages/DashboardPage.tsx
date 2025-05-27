@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
@@ -22,7 +21,11 @@ import {
   Send,
   Save,
   BarChart3,
-  MessageSquare
+  MessageSquare,
+  Palette,
+  Globe,
+  Phone,
+  Mail
 } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import NotificationSender from '@/components/NotificationSender';
@@ -31,8 +34,17 @@ interface AppSettings {
   app_name: string;
   app_description: string;
   support_phone: string;
+  support_email: string;
   default_currency: string;
   maintenance_mode: boolean;
+  primary_color: string;
+  secondary_color: string;
+  logo_url: string;
+  terms_url: string;
+  privacy_url: string;
+  facebook_url: string;
+  twitter_url: string;
+  instagram_url: string;
 }
 
 interface HotelData {
@@ -51,10 +63,19 @@ const DashboardPage = () => {
   const [isAddingHotel, setIsAddingHotel] = useState(false);
   const [appSettings, setAppSettings] = useState<AppSettings>({
     app_name: 'محجوز',
-    app_description: 'منصة حجز الفنادق الرائدة',
+    app_description: 'منصة حجز الفنادق الرائدة في المنطقة',
     support_phone: '201204486263',
+    support_email: 'support@mahjoz.com',
     default_currency: 'EGP',
-    maintenance_mode: false
+    maintenance_mode: false,
+    primary_color: '#3B82F6',
+    secondary_color: '#8B5CF6',
+    logo_url: '',
+    terms_url: '',
+    privacy_url: '',
+    facebook_url: '',
+    twitter_url: '',
+    instagram_url: ''
   });
   const [newHotel, setNewHotel] = useState<HotelData>({
     name: '',
@@ -117,17 +138,41 @@ const DashboardPage = () => {
     }
   });
 
+  // Fetch all users
+  const { data: users } = useQuery({
+    queryKey: ['dashboardUsers'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .order('created_at', { ascending: false });
+      
+      if (error) throw error;
+      return data;
+    }
+  });
+
   // Save app settings mutation
   const saveSettingsMutation = useMutation({
     mutationFn: async (settings: AppSettings) => {
-      // في تطبيق حقيقي، يمكن حفظ الإعدادات في قاعدة البيانات
-      // هنا سنحفظها في localStorage للتطوير
+      // حفظ الإعدادات في localStorage وقاعدة البيانات
       localStorage.setItem('app_settings', JSON.stringify(settings));
+      
+      // حفظ في قاعدة البيانات
+      for (const [key, value] of Object.entries(settings)) {
+        await supabase
+          .from('admin_settings')
+          .upsert({ 
+            key, 
+            value: typeof value === 'string' ? value : JSON.stringify(value) 
+          }, { onConflict: 'key' });
+      }
+      
       return settings;
     },
     onSuccess: () => {
       toast({ 
-        title: 'تم حفظ الإعدادات بنجاح',
+        title: 'تم حفظ إعدادات التطبيق بنجاح',
         duration: 500 
       });
     }
@@ -262,18 +307,19 @@ const DashboardPage = () => {
   return (
     <div className="max-w-7xl mx-auto px-4 py-6 pb-20">
       <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-800 mb-2">لوحة التحكم الرئيسية</h1>
-        <p className="text-gray-600">إدارة شاملة لجميع جوانب التطبيق</p>
+        <h1 className="text-3xl font-bold text-gray-800 mb-2">لوحة التحكم الشاملة</h1>
+        <p className="text-gray-600">إدارة شاملة لجميع جوانب التطبيق والنظام</p>
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full grid-cols-6 mb-8">
+        <TabsList className="grid w-full grid-cols-7 mb-8">
           <TabsTrigger value="overview">نظرة عامة</TabsTrigger>
-          <TabsTrigger value="settings">إعدادات التطبيق</TabsTrigger>
-          <TabsTrigger value="hotels">الفنادق</TabsTrigger>
-          <TabsTrigger value="bookings">الحجوزات</TabsTrigger>
-          <TabsTrigger value="users">المستخدمين</TabsTrigger>
-          <TabsTrigger value="notifications">الإشعارات</TabsTrigger>
+          <TabsTrigger value="app-settings">إعدادات التطبيق</TabsTrigger>
+          <TabsTrigger value="design">التصميم والشكل</TabsTrigger>
+          <TabsTrigger value="hotels">إدارة الفنادق</TabsTrigger>
+          <TabsTrigger value="bookings">إدارة الحجوزات</TabsTrigger>
+          <TabsTrigger value="users">إدارة المستخدمين</TabsTrigger>
+          <TabsTrigger value="notifications">الإشعارات والرسائل</TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview">
@@ -319,7 +365,7 @@ const DashboardPage = () => {
             <CardHeader>
               <CardTitle className="flex items-center">
                 <BarChart3 className="h-5 w-5 ml-2" />
-                آخر الأنشطة
+                آخر الأنشطة والحجوزات
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -328,7 +374,7 @@ const DashboardPage = () => {
                   <div key={booking.id} className="flex items-center justify-between p-4 border rounded-lg">
                     <div className="text-right">
                       <p className="font-medium">{booking.hotels?.name}</p>
-                      <p className="text-sm text-gray-600">حجز جديد</p>
+                      <p className="text-sm text-gray-600">حجز جديد - {booking.total_price} {booking.currency}</p>
                     </div>
                     <div className="text-left">
                       <Badge 
@@ -349,15 +395,15 @@ const DashboardPage = () => {
           </Card>
         </TabsContent>
 
-        <TabsContent value="settings">
+        <TabsContent value="app-settings">
           <Card className="bg-white/80 backdrop-blur-sm border-0 shadow-lg">
             <CardHeader>
               <CardTitle className="flex items-center">
                 <Settings className="h-5 w-5 ml-2" />
-                إعدادات التطبيق العامة
+                إعدادات التطبيق الأساسية
               </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-4">
+            <CardContent className="space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <Label htmlFor="appName">اسم التطبيق</Label>
@@ -369,11 +415,11 @@ const DashboardPage = () => {
                   />
                 </div>
                 <div>
-                  <Label htmlFor="supportPhone">رقم الدعم الفني</Label>
+                  <Label htmlFor="defaultCurrency">العملة الافتراضية</Label>
                   <Input
-                    id="supportPhone"
-                    value={appSettings.support_phone}
-                    onChange={(e) => setAppSettings(prev => ({ ...prev, support_phone: e.target.value }))}
+                    id="defaultCurrency"
+                    value={appSettings.default_currency}
+                    onChange={(e) => setAppSettings(prev => ({ ...prev, default_currency: e.target.value }))}
                     className="text-right"
                   />
                 </div>
@@ -391,22 +437,115 @@ const DashboardPage = () => {
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <Label htmlFor="defaultCurrency">العملة الافتراضية</Label>
+                  <Label htmlFor="supportPhone">رقم الدعم الفني</Label>
                   <Input
-                    id="defaultCurrency"
-                    value={appSettings.default_currency}
-                    onChange={(e) => setAppSettings(prev => ({ ...prev, default_currency: e.target.value }))}
+                    id="supportPhone"
+                    value={appSettings.support_phone}
+                    onChange={(e) => setAppSettings(prev => ({ ...prev, support_phone: e.target.value }))}
                     className="text-right"
                   />
                 </div>
-                <div className="flex items-center space-x-2 space-x-reverse">
-                  <input
-                    type="checkbox"
-                    id="maintenanceMode"
-                    checked={appSettings.maintenance_mode}
-                    onChange={(e) => setAppSettings(prev => ({ ...prev, maintenance_mode: e.target.checked }))}
+                <div>
+                  <Label htmlFor="supportEmail">بريد الدعم الفني</Label>
+                  <Input
+                    id="supportEmail"
+                    value={appSettings.support_email}
+                    onChange={(e) => setAppSettings(prev => ({ ...prev, support_email: e.target.value }))}
+                    className="text-right"
                   />
-                  <Label htmlFor="maintenanceMode">وضع الصيانة</Label>
+                </div>
+              </div>
+
+              <div className="flex items-center space-x-2 space-x-reverse">
+                <input
+                  type="checkbox"
+                  id="maintenanceMode"
+                  checked={appSettings.maintenance_mode}
+                  onChange={(e) => setAppSettings(prev => ({ ...prev, maintenance_mode: e.target.checked }))}
+                />
+                <Label htmlFor="maintenanceMode">وضع الصيانة (إيقاف التطبيق مؤقتاً)</Label>
+              </div>
+
+              <Button 
+                onClick={handleSaveSettings}
+                disabled={saveSettingsMutation.isPending}
+                className="w-full md:w-auto"
+              >
+                <Save className="h-4 w-4 ml-2" />
+                {saveSettingsMutation.isPending ? 'جاري الحفظ...' : 'حفظ إعدادات التطبيق'}
+              </Button>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="design">
+          <Card className="bg-white/80 backdrop-blur-sm border-0 shadow-lg">
+            <CardHeader>
+              <CardTitle className="flex items-center">
+                <Palette className="h-5 w-5 ml-2" />
+                تخصيص التصميم والألوان
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="primaryColor">اللون الأساسي</Label>
+                  <Input
+                    id="primaryColor"
+                    type="color"
+                    value={appSettings.primary_color}
+                    onChange={(e) => setAppSettings(prev => ({ ...prev, primary_color: e.target.value }))}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="secondaryColor">اللون الثانوي</Label>
+                  <Input
+                    id="secondaryColor"
+                    type="color"
+                    value={appSettings.secondary_color}
+                    onChange={(e) => setAppSettings(prev => ({ ...prev, secondary_color: e.target.value }))}
+                  />
+                </div>
+              </div>
+
+              <div>
+                <Label htmlFor="logoUrl">رابط الشعار</Label>
+                <Input
+                  id="logoUrl"
+                  value={appSettings.logo_url}
+                  onChange={(e) => setAppSettings(prev => ({ ...prev, logo_url: e.target.value }))}
+                  placeholder="https://example.com/logo.png"
+                  className="text-right"
+                />
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                  <Label htmlFor="facebookUrl">رابط فيسبوك</Label>
+                  <Input
+                    id="facebookUrl"
+                    value={appSettings.facebook_url}
+                    onChange={(e) => setAppSettings(prev => ({ ...prev, facebook_url: e.target.value }))}
+                    className="text-right"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="twitterUrl">رابط تويتر</Label>
+                  <Input
+                    id="twitterUrl"
+                    value={appSettings.twitter_url}
+                    onChange={(e) => setAppSettings(prev => ({ ...prev, twitter_url: e.target.value }))}
+                    className="text-right"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="instagramUrl">رابط إنستجرام</Label>
+                  <Input
+                    id="instagramUrl"
+                    value={appSettings.instagram_url}
+                    onChange={(e) => setAppSettings(prev => ({ ...prev, instagram_url: e.target.value }))}
+                    className="text-right"
+                  />
                 </div>
               </div>
 
@@ -416,7 +555,7 @@ const DashboardPage = () => {
                 className="w-full md:w-auto"
               >
                 <Save className="h-4 w-4 ml-2" />
-                {saveSettingsMutation.isPending ? 'جاري الحفظ...' : 'حفظ الإعدادات'}
+                حفظ تخصيصات التصميم
               </Button>
             </CardContent>
           </Card>
@@ -424,7 +563,7 @@ const DashboardPage = () => {
 
         <TabsContent value="hotels">
           <div className="flex justify-between items-center mb-6">
-            <h2 className="text-2xl font-bold">إدارة الفنادق</h2>
+            <h2 className="text-2xl font-bold">إدارة الفنادق الشاملة</h2>
             <Button onClick={() => setIsAddingHotel(true)}>
               <Plus className="h-4 w-4 ml-2" />
               إضافة فندق جديد
@@ -576,7 +715,7 @@ const DashboardPage = () => {
         </TabsContent>
 
         <TabsContent value="bookings">
-          <h2 className="text-2xl font-bold mb-6">إدارة الحجوزات</h2>
+          <h2 className="text-2xl font-bold mb-6">إدارة الحجوزات الشاملة</h2>
           <Card className="bg-white/80 backdrop-blur-sm border-0 shadow-lg">
             <CardContent className="p-6">
               <div className="space-y-4">
@@ -588,6 +727,7 @@ const DashboardPage = () => {
                         {new Date(booking.check_in).toLocaleDateString('ar-EG')} - 
                         {new Date(booking.check_out).toLocaleDateString('ar-EG')}
                       </p>
+                      <p className="text-sm text-gray-500">عدد النزلاء: {booking.guests}</p>
                     </div>
                     <div className="text-left">
                       <Badge 
@@ -647,16 +787,33 @@ const DashboardPage = () => {
         </TabsContent>
 
         <TabsContent value="users">
-          <h2 className="text-2xl font-bold mb-6">إدارة المستخدمين</h2>
+          <h2 className="text-2xl font-bold mb-6">إدارة المستخدمين الشاملة</h2>
           <Card className="bg-white/80 backdrop-blur-sm border-0 shadow-lg">
             <CardContent className="p-6">
-              <p className="text-gray-600">سيتم إضافة قائمة المستخدمين قريباً...</p>
+              <div className="space-y-4">
+                {users?.map((user) => (
+                  <div key={user.id} className="flex items-center justify-between p-4 border rounded-lg">
+                    <div className="text-right">
+                      <p className="font-medium">{user.first_name} {user.last_name}</p>
+                      <p className="text-sm text-gray-600">{user.phone}</p>
+                      <p className="text-sm text-gray-500">
+                        انضم في: {new Date(user.created_at).toLocaleDateString('ar-EG')}
+                      </p>
+                    </div>
+                    <div className="text-left">
+                      <Badge className="bg-blue-100 text-blue-800">
+                        مستخدم نشط
+                      </Badge>
+                    </div>
+                  </div>
+                ))}
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
 
         <TabsContent value="notifications">
-          <h2 className="text-2xl font-bold mb-6">إدارة الإشعارات</h2>
+          <h2 className="text-2xl font-bold mb-6">إدارة الإشعارات والرسائل</h2>
           <NotificationSender />
         </TabsContent>
       </Tabs>

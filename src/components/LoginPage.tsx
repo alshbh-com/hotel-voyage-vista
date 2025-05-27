@@ -12,6 +12,7 @@ const LoginPage = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isLogin, setIsLogin] = useState(true);
+  const [isGuestLoading, setIsGuestLoading] = useState(false);
   const { login, register, loginAsGuest, currentUser } = useAuth();
   const navigate = useNavigate();
 
@@ -46,6 +47,9 @@ const LoginPage = () => {
   };
 
   const handleGuestLogin = async () => {
+    if (isGuestLoading) return;
+    
+    setIsGuestLoading(true);
     try {
       await loginAsGuest();
       toast({ 
@@ -54,12 +58,15 @@ const LoginPage = () => {
       });
       navigate('/', { replace: true });
     } catch (error: any) {
+      console.error('Guest login error:', error);
       toast({ 
         title: 'خطأ في الدخول كزائر',
-        description: error.message,
+        description: 'حدث خطأ، يرجى المحاولة مرة أخرى',
         variant: 'destructive',
         duration: 500
       });
+    } finally {
+      setIsGuestLoading(false);
     }
   };
 
@@ -163,10 +170,18 @@ const LoginPage = () => {
             
             <Button
               onClick={handleGuestLogin}
+              disabled={isGuestLoading}
               variant="outline"
               className="w-full border-purple-300 text-purple-600 hover:bg-purple-50"
             >
-              الدخول كزائر
+              {isGuestLoading ? (
+                <>
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-purple-600 ml-2"></div>
+                  جاري إنشاء حساب زائر...
+                </>
+              ) : (
+                'الدخول كزائر'
+              )}
             </Button>
           </div>
         </CardContent>

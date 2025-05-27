@@ -42,6 +42,12 @@ const PaymentPage = () => {
       console.log('Payment data set:', location.state.paymentData);
     } else {
       console.log('No payment data found, redirecting to home');
+      toast({
+        title: 'خطأ في بيانات الدفع',
+        description: 'لم يتم العثور على بيانات الحجز، يرجى المحاولة مرة أخرى',
+        variant: 'destructive',
+        duration: 500
+      });
       navigate('/', { replace: true });
     }
   }, [location.state, navigate]);
@@ -50,6 +56,8 @@ const PaymentPage = () => {
     setIsProcessing(true);
     
     try {
+      console.log('بدء محاكاة عملية الدفع...');
+      
       // محاكاة تأخير معالجة الدفع
       await new Promise(resolve => setTimeout(resolve, 3000));
       
@@ -68,15 +76,20 @@ const PaymentPage = () => {
         status: 'pending'
       };
 
+      console.log('إنشاء الحجز في قاعدة البيانات:', bookingData);
+
       const { data, error } = await supabase
         .from('bookings')
         .insert(bookingData)
         .select()
         .single();
 
-      if (error) throw error;
+      if (error) {
+        console.error('خطأ في إنشاء الحجز:', error);
+        throw error;
+      }
 
-      console.log('تم إنشاء الحجز:', data);
+      console.log('تم إنشاء الحجز بنجاح:', data);
 
       // محاكاة نجاح الدفع
       toast({
@@ -85,7 +98,7 @@ const PaymentPage = () => {
         duration: 500
       });
 
-      // التوجه إلى صفحة الحجوزات
+      // التوجه إلى صفحة الحجوزات بعد نجاح الدفع
       setTimeout(() => {
         navigate('/bookings', { replace: true });
       }, 1000);
@@ -115,7 +128,7 @@ const PaymentPage = () => {
       return;
     }
 
-    console.log('بدء عملية الدفع...');
+    console.log('بدء عملية الدفع الوهمي...');
     await simulatePayment();
   };
 
@@ -133,8 +146,8 @@ const PaymentPage = () => {
   return (
     <div className="max-w-4xl mx-auto px-4 py-6 pb-20">
       <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-800 mb-2">إتمام الدفع</h1>
-        <p className="text-gray-600">أدخل بيانات البطاقة لإتمام الحجز</p>
+        <h1 className="text-3xl font-bold text-gray-800 mb-2">إتمام الدفع الوهمي</h1>
+        <p className="text-gray-600">أدخل بيانات البطاقة الوهمية لإتمام الحجز</p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
@@ -190,7 +203,7 @@ const PaymentPage = () => {
           </CardContent>
         </Card>
 
-        {/* نموذج الدفع */}
+        {/* نموذج الدفع الوهمي */}
         <Card className="bg-white/80 backdrop-blur-sm border-0 shadow-lg">
           <CardHeader>
             <CardTitle className="flex items-center">
@@ -199,7 +212,7 @@ const PaymentPage = () => {
             </CardTitle>
             <div className="flex items-center text-sm text-gray-500">
               <Lock className="h-4 w-4 ml-1" />
-              <span>نظام دفع وهمي للتطوير</span>
+              <span>نظام دفع وهمي للتطوير والاختبار</span>
             </div>
           </CardHeader>
           <CardContent>
@@ -217,7 +230,7 @@ const PaymentPage = () => {
               </div>
 
               <div>
-                <Label htmlFor="cardNumber">رقم البطاقة</Label>
+                <Label htmlFor="cardNumber">رقم البطاقة الوهمي</Label>
                 <Input
                   id="cardNumber"
                   value={cardNumber}
@@ -266,7 +279,7 @@ const PaymentPage = () => {
                   <span className="text-blue-800 font-medium">نظام دفع وهمي للتطوير</span>
                 </div>
                 <p className="text-blue-700 text-sm mt-1">
-                  يمكنك استخدام أي أرقام للاختبار. سيتم إنشاء الحجز ومحاكاة عملية الدفع.
+                  يمكنك استخدام أي أرقام للاختبار. سيتم إنشاء الحجز ومحاكاة عملية الدفع بنجاح.
                 </p>
               </div>
 

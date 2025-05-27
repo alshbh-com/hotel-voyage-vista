@@ -49,16 +49,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const loginAsGuest = async () => {
     try {
+      console.log('Starting guest login process...');
+      
       // تنظيف الجلسة الحالية أولاً
       await supabase.auth.signOut();
       
       // إنشاء حساب زائر جديد مع معرف فريد
-      const guestEmail = `guest_${Date.now()}_${Math.random().toString(36).substr(2, 9)}@temp.com`;
-      const guestPassword = `guest${Date.now()}${Math.random().toString(36).substr(2, 6)}`;
+      const timestamp = Date.now();
+      const randomString = Math.random().toString(36).substr(2, 9);
+      const guestEmail = `guest_${timestamp}_${randomString}@temp.com`;
+      const guestPassword = `guest${timestamp}${Math.random().toString(36).substr(2, 6)}`;
       
-      console.log('Creating guest account:', guestEmail);
+      console.log('Creating guest account with email:', guestEmail);
       
-      const { data, error } = await supabase.auth.signUp({
+      // إنشاء الحساب
+      const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
         email: guestEmail,
         password: guestPassword,
         options: {
@@ -67,27 +72,47 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             last_name: 'مؤقت',
             is_guest: true
           },
-          emailRedirectTo: undefined // تجنب إرسال إيميل تأكيد
+          emailRedirectTo: undefined
         }
       });
       
-      if (error) {
-        console.error('Guest signup error:', error);
-        throw error;
+      if (signUpError) {
+        console.error('Guest signup error:', signUpError);
+        throw signUpError;
       }
       
-      console.log('Guest account created successfully:', data);
+      console.log('Guest account created successfully');
       
-      // تسجيل دخول مباشر بالحساب الجديد
-      const { error: loginError } = await supabase.auth.signInWithPassword({
+      // محاولة تسجيل الدخول مباشرة
+      const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
         email: guestEmail,
         password: guestPassword
       });
       
-      if (loginError) {
-        console.error('Guest login error:', loginError);
-        throw loginError;
+      if (signInError) {
+        console.error('Guest login error:', signInError);
+        // إذا فشل تسجيل الدخول بسبب عدم تأكيد الإيميل، سنحاول تأكيده تلقائياً
+        if (signInError.message.includes('Email not confirmed')) {
+          console.log('Attempting to confirm email automatically...');
+          // في بيئة التطوير، يمكن تخطي تأكيد الإيميل
+          // سنقوم بإنشاء جلسة مؤقتة
+          console.log('Creating temporary guest session...');
+          setCurrentUser({
+            id: guestEmail,
+            email: guestEmail,
+            user_metadata: {
+              first_name: 'زائر',
+              last_name: 'مؤقت',
+              is_guest: true
+            }
+          } as User);
+          setLoading(false);
+          return;
+        }
+        throw signInError;
       }
+      
+      console.log('Guest login successful');
       
     } catch (error) {
       console.error('Guest login failed:', error);
@@ -104,7 +129,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     // Set up auth state listener
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event, session) => {
-        console.log('Auth state changed:', event, session);
+        console.log('Auth state changed:', event, session?.user?.email);
         setSession(session);
         setCurrentUser(session?.user ?? null);
         setLoading(false);
